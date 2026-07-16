@@ -516,11 +516,15 @@ Layout:
   scripts/post-install-extra.sh
   ks/ks.cfg
 
-Quick start on installed system:
+Quick start on installed system (USB inserted):
   sudo mkdir -p /mnt/rhel8offline
   sudo mount -L $USB_REPO_LABEL /mnt/rhel8offline
   sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
-  # or: sudo enable-offline-repos.sh   # if kickstart %post installed helpers
+
+  # That copies the mirror to /var/lib/offline-repos and points dnf there.
+  # USB can be removed afterward. Day-to-day:
+  #   sudo offline-repo-status.sh
+  #   sudo dnf install <package>
 EOF
 
   sync
