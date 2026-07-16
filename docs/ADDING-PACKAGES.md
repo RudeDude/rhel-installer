@@ -62,7 +62,7 @@ dnf info rsync openssh-server
    ./scripts/05-fetch-epel-packages.sh
    ```
 
-   This installs `epel-release` **inside the container only**, runs `dnf download --resolve`, and builds:
+   Builds:
 
    ```text
    out/offline-repo/EPEL/
@@ -70,24 +70,49 @@ dnf info rsync openssh-server
      repodata/
    ```
 
-3. Also list the package in `required.txt` or `recommended.txt` if you want kickstart/`post-install-extra.sh` to install it automatically (once EPEL is enabled offline).
-4. Re-write the USB (or rsync only the new `EPEL/` tree onto the existing `RHEL8OFFLINE` partition).
-5. On the installed system, enable the EPEL file repo (example):
+3. Update USB offline partition (full step 4 or rsync `EPEL/`).
+4. On the installed system with offline repos enabled: `sudo dnf install htop nload …`
 
-   ```ini
-   # /etc/yum.repos.d/offline-epel.repo
-   [offline-epel]
-   name=Offline EPEL 8
-   baseurl=file:///mnt/rhel8offline/EPEL
-   enabled=1
-   gpgcheck=0
+> Full EPEL “Everything” is large. Prefer **targeted** downloads.
+
+## C. Add a Python package with no RPM (pipx, …) — pre-staged wheels
+
+1. Add the requirement to **`packages/python-extra.txt`** (pip syntax; one per line), e.g. `pipx` or `requests==2.31.0`.
+2. On the **connected build host**:
+
+   ```bash
+   ./scripts/07-fetch-python-wheels.sh
    ```
 
-   Then: `sudo dnf install htop nload`
+   This runs `pip download -r … -d out/offline-repo/python-wheels/` and pulls **dependencies as wheels**.
 
-> Full EPEL “Everything” is large (tens of GB). Prefer **targeted** `dnf download --resolve` of the packages you need rather than mirroring all of EPEL.
+   Config in `config.env` (optional):
 
-## C. Refresh security updates later (re-sync)
+   ```bash
+   PYTHON_EXTRA_FILE="packages/python-extra.txt"
+   PYTHON_WHEEL_DIR="out/offline-repo/python-wheels"
+   PYTHON_PIP="python3 -m pip"
+   ```
+
+3. Ensure RHEL media includes a modern interpreter (in `required.txt`):
+
+   - `python3.11`, `python3.11-pip`, `python3.11-setuptools`  
+     (base `python3` on RHEL 8 is often 3.6 — too old for modern pipx)
+
+4. On the air-gapped host (USB mounted):
+
+   ```bash
+   sudo dnf install python3.11 python3.11-pip
+   python3.11 -m pip install --no-index \
+     --find-links=/mnt/rhel8offline/python-wheels \
+     -r /mnt/rhel8offline/python-wheels/requirements.txt
+   ```
+
+   `post-install-extra.sh` does this automatically when `python-wheels/` is on the media.
+
+> Compiled extensions need manylinux wheels matching the target; pure-Python packages (like pipx) stage cleanly as `py3-none-any.whl`.
+
+## D. Refresh security updates later (re-sync)
 
 When you want newer errata on the stick:
 
@@ -101,16 +126,17 @@ sudo ./scripts/04-prepare-usb.sh /dev/sdb   # or rsync out/offline-repo/ onto th
 
 You do **not** need to change package lists just to pick up newer NEVRAs of packages you already install by name.
 
-## D. Checklist for “I thought of another tool”
+## E. Checklist for “I thought of another tool”
 
 | Step | Action |
 |------|--------|
-| 1 | Find real package name (`dnf search` / `dnf provides`) |
-| 2 | Is it in BaseOS/AppStream/CRB offline trees? (`find out/offline-repo -name 'foo*.rpm'`) |
-| 3a | **Yes** → add to `required.txt` or `recommended.txt` → regenerate kickstart |
-| 3b | **No / EPEL** → add to `epel-extra.txt` → `./scripts/05-fetch-epel-packages.sh` |
-| 4 | Update USB offline partition (full step 4 or targeted rsync) |
-| 5 | Install offline on the target (`dnf install …`) |
+| 1 | Is it an **RPM** or a **PyPI** package? |
+| 2a | RPM in BaseOS/AppStream/CRB? → `required.txt` / `recommended.txt` |
+| 2b | RPM only in EPEL? → `epel-extra.txt` → `./scripts/05-fetch-epel-packages.sh` |
+| 2c | PyPI only? → `python-extra.txt` → `./scripts/07-fetch-python-wheels.sh` |
+| 3 | `./scripts/06-check-offline-deps.sh` for RPMs |
+| 4 | Update USB offline partition |
+| 5 | Install offline (`dnf` and/or `python3.11 -m pip --no-index …`) |
 
 ## Will offline `dnf install` get all dependencies?
 
@@ -124,8 +150,8 @@ You do **not** need to change package lists just to pick up newer NEVRAs of pack
 Caveats:
 
 - The package name must actually exist on the media. Verified gaps:
-  - **`ntpdate`**: not in RHEL 8 — use **chrony**.
-  - **`pipx`**: no RPM on RHEL 8 **or EPEL 8** — install with **`python3 -m pip install --user pipx`** (online once, or ship wheels on the USB for offline pip).
+  - **`ntpdate`**: not in RHEL 8 — use **chrony** (removed from our lists).
+  - **`pipx`**: no RPM on RHEL 8 **or EPEL 8** — stage via **`packages/python-extra.txt`** + **`07-fetch-python-wheels.sh`**.
 - Modular streams / weak deps can still surprise you.
 - **`Server with GUI`** pulls a large comps set — covered only because AppStream was fully mirrored.
 - Always enable **all** offline repos when installing (RHEL + EPEL).
@@ -157,10 +183,12 @@ sudo dnf install --assumeno htop   # shows the transaction; look for "No match" 
 |------|------|
 | `packages/required.txt` | Baseline package names for kickstart generation |
 | `packages/recommended.txt` | Optional extras (`INCLUDE_RECOMMENDED`) |
-| `packages/epel-extra.txt` | Names to pull from EPEL into `out/offline-repo/EPEL` |
+| `packages/epel-extra.txt` | EPEL RPMs → `out/offline-repo/EPEL` |
+| `packages/python-extra.txt` | PyPI names → wheels in `out/offline-repo/python-wheels` |
 | `packages/groups.txt` | Comps groups (mostly package-mode installs) |
 | `scripts/02-generate-kickstart.sh` | Builds `out/ks.cfg` from lists + template |
-| `scripts/05-fetch-epel-packages.sh` | Resolves/downloads EPEL extras |
-| `scripts/06-check-offline-deps.sh` | Offline dep dry-run (`dnf install --downloadonly`) |
+| `scripts/05-fetch-epel-packages.sh` | Resolves/downloads EPEL RPMs + deps |
+| `scripts/06-check-offline-deps.sh` | Offline RPM dep dry-run |
+| `scripts/07-fetch-python-wheels.sh` | `pip download` wheels + deps for offline pip |
 | `scripts/post-install-extra.sh` | First-boot offline install helper on the target |
 | `scripts/01-reposync.sh` | Full BaseOS/AppStream/CRB mirror |

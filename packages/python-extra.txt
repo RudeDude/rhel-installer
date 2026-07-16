@@ -1,0 +1,13 @@
+# Python packages to stage as wheels (+ dependencies) for offline pip install.
+# Fetched with: ./scripts/07-fetch-python-wheels.sh
+# Installed on target from: $OFFLINE_MEDIA/python-wheels via pip --no-index --find-links
+#
+# One requirement per line (pip requirement syntax is OK):
+#   pipx
+#   requests==2.31.0
+#   'package>=1.0'
+#
+# Prefer pure-Python / py3-none-any wheels when possible so they run on RHEL 8's
+# python3.11 (installed from AppStream). Modern pipx needs Python >= 3.8.
+
+pipx

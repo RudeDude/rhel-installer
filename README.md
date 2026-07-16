@@ -28,7 +28,7 @@ Do **not** rebuild one giant multi‑GB package ISO when errata change. Use a **
 | Region | Size | Purpose |
 |--------|------|---------|
 | Start of disk | ~3–4 GB | Customized FIPS/STIG isohybrid installer (kickstart injected) |
-| Rest of disk `LABEL=RHEL8OFFLINE` | remainder | Offline RPM trees (BaseOS + AppStream + CRB + **EPEL**) |
+| Rest of disk `LABEL=RHEL8OFFLINE` | remainder | Offline RPM trees + EPEL + Python wheels |
 
 ```
 USB
@@ -37,7 +37,8 @@ USB
     ├── BaseOS/
     ├── AppStream/
     ├── CodeReadyBuilder/
-    ├── EPEL/                   # required: htop, nload, pv, keepassxc, rdesktop, …
+    ├── EPEL/                   # required RPMs: htop, nload, pv, keepassxc, rdesktop
+    ├── python-wheels/          # pre-staged PyPI wheels (pipx + deps)
     ├── ks/ks.cfg
     └── scripts/post-install-extra.sh
 ```
@@ -110,8 +111,11 @@ chmod 600 config.env
 ./scripts/01-reposync.sh
 ./scripts/status-reposync.sh          # progress / COMPLETE check
 
-# 2b. Fetch required EPEL packages (htop, nload, pv, keepassxc, rdesktop, …)
-./scripts/05-fetch-epel-packages.sh   # uses packages/epel-extra.txt
+# 2b. Fetch required EPEL RPMs (htop, nload, pv, keepassxc, rdesktop, …)
+./scripts/05-fetch-epel-packages.sh   # packages/epel-extra.txt
+
+# 2c. Stage Python wheels for offline pip (pipx + deps, …)
+./scripts/07-fetch-python-wheels.sh   # packages/python-extra.txt → python-wheels/
 
 # 3. Generate kickstart + inject into FIPS ISO
 ./scripts/02-generate-kickstart.sh
@@ -139,20 +143,22 @@ See also `docs/STEP4-USB-REVIEW.md`.
 1. **Installer** delivers the Image Builder rootfs (`liveimg`), not a classic `%packages` DVD install.
 2. **Kickstart `%post`** mounts `LABEL=RHEL8OFFLINE`, enables file:// repos (RHEL + required EPEL tree), runs `dnf upgrade` / installs your lists, and can `groupinstall "Server with GUI"`.
 3. **Offline RHEL tree** is a full newest-only (`dnf reposync -n`) mirror of BaseOS + AppStream + CRB — primary security-update channel on the stick.
-4. **Offline EPEL tree** is a **required** targeted set for tools Red Hat does not ship (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …). Keep `packages/epel-extra.txt` in sync with what you expect on every install.
-5. **`scripts/post-install-extra.sh`** can finish package work after first boot if `%post` could not see the USB.
+4. **Offline EPEL tree** is a **required** targeted RPM set (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …) via `packages/epel-extra.txt`.
+5. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/07-fetch-python-wheels.sh`.
+6. **`scripts/post-install-extra.sh`** installs RPMs from offline dnf repos, then installs wheels with `python3.11 -m pip --no-index --find-links=…`.
 
 Package name notes: `docs/PACKAGE-NOTES.md`.
 
-Lists:
+Lists / config:
 
-- `packages/required.txt` — RHEL-repo packages (Java 8/11/17, wireshark, git/gitk/git-lfs, freerdp, rsync, openssh-server, …)
-- `packages/recommended.txt` — optional RHEL extras (desktop niceties, admin tools)
-- `packages/epel-extra.txt` — **required EPEL set** (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …) → `./scripts/05-fetch-epel-packages.sh`
-- `packages/groups.txt` — comps / environment groups for package-mode installs
+| What | File / script |
+|------|----------------|
+| RHEL RPMs | `packages/required.txt`, `recommended.txt` |
+| EPEL RPMs | `packages/epel-extra.txt` → `./scripts/05-fetch-epel-packages.sh` |
+| PyPI / wheels | `packages/python-extra.txt` → `./scripts/07-fetch-python-wheels.sh` |
+| Config | `PYTHON_EXTRA_FILE`, `PYTHON_WHEEL_DIR`, `PYTHON_PIP` in `config.env` |
 
-**Adding more packages later:** see **`docs/ADDING-PACKAGES.md`**.  
-If the new tool is missing from BaseOS/AppStream/CRB, add it to `epel-extra.txt` and re-run step 2b — do not assume “RHEL-only media is enough.”
+**Adding more packages later:** see **`docs/ADDING-PACKAGES.md`** (RPM vs EPEL vs wheel paths).
 
 ## Measured space (x86_64, newest-only reposync)
 
@@ -163,7 +169,8 @@ If the new tool is missing from BaseOS/AppStream/CRB, add it to `epel-extra.txt`
 | AppStream | ~17 GB |
 | CodeReady Builder | ~13 GB |
 | EPEL (targeted required set) | ~0.15 GB |
-| **Offline tree total** | **~31 GB** (+ EPEL) |
+| Python wheels (pipx + deps) | ~0.001 GB |
+| **Offline tree total** | **~31 GB** (+ EPEL + wheels) |
 | USB capacity | ~230 GB usable |
 
 Earlier “AppStream 35–55 GB” estimates assumed older/fuller mirrors; with `-n` (newest NEVRA only) ~31 GB total is realistic.
@@ -203,21 +210,24 @@ rhel-installer/
 ├── packages/
 │   ├── required.txt
 │   ├── recommended.txt
-│   ├── epel-extra.txt          # required EPEL: htop, nload, pv, keepassxc, …
+│   ├── epel-extra.txt          # required EPEL RPMs
+│   ├── python-extra.txt        # PyPI packages → offline wheels (pipx, …)
 │   └── groups.txt
 ├── kickstart/
 │   └── ks.cfg.template
 ├── docker/
-│   └── Dockerfile.reposync     # public UBI base; tools after register
+│   └── Dockerfile.reposync
 ├── scripts/
 │   ├── 01-reposync.sh
 │   ├── 02-generate-kickstart.sh
 │   ├── 03-inject-kickstart.sh
-│   ├── 04-prepare-usb.sh       # --dry-run recommended first
+│   ├── 04-prepare-usb.sh
 │   ├── 05-fetch-epel-packages.sh
+│   ├── 06-check-offline-deps.sh
+│   ├── 07-fetch-python-wheels.sh
 │   ├── status-reposync.sh
 │   └── post-install-extra.sh
-└── out/                        # gitignored: offline-repo, ISO, logs, ks.cfg
+└── out/                        # gitignored: offline-repo (incl. EPEL + python-wheels), ISO, logs
 ```
 
 ## Security

@@ -3,6 +3,9 @@
 # Installed offline from out/offline-repo/EPEL when that tree is on the USB.
 #
 # Confirm names on a registered host:  dnf search <name>  (with epel enabled)
+#
+# Python packages that are not RPMs (e.g. pipx) go in packages/python-extra.txt
+# and are staged as wheels via ./scripts/07-fetch-python-wheels.sh
 
 # Admin / monitoring
 htop
@@ -11,12 +14,6 @@ pv
 
 # Password manager: KeepassX is abandoned; EPEL provides KeepassXC (compatible successor)
 keepassxc
-# keepassx   # often unavailable; prefer keepassxc
 
 # Classic RDP client (optional; freerdp/xfreerdp is already in required.txt from AppStream)
 rdesktop
-
-# NOT available as RPM on RHEL 8 / EPEL 8 (verified): pipx
-# Install offline after python3-pip is present, e.g.:
-#   python3 -m pip install --user pipx
-#   (ship wheels on USB if you need fully offline pip installs)

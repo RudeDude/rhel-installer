@@ -5,6 +5,7 @@ set -euo pipefail
 
 LABEL="${USB_REPO_LABEL:-RHEL8OFFLINE}"
 MNT="${MNT:-/mnt/rhel8offline}"
+WHEEL_DIR="${PYTHON_WHEEL_DIR:-$MNT/python-wheels}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root" >&2
@@ -38,22 +39,27 @@ enabled=1
 gpgcheck=0
 
 [offline-epel]
-name=Offline EPEL 8 (optional extras)
+name=Offline EPEL 8
 baseurl=file://$MNT/EPEL
 enabled=$( [[ -d "$MNT/EPEL/repodata" || -d "$MNT/EPEL/Packages" ]] && echo 1 || echo 0 )
 gpgcheck=0
 EOF
 fi
 
+# Prefer media wheel dir if present
+if [[ -d "$MNT/python-wheels" ]]; then
+  WHEEL_DIR="$MNT/python-wheels"
+fi
+
 echo "==> Applying offline upgrades (security errata on the USB)"
 dnf -y upgrade || true
 
 # Fail loudly on missing packages/deps (do not mask with || true).
-# Comment out individual blocks if you need best-effort installs.
 
 echo "==> Core required packages (RHEL repos)"
 dnf -y install \
   chrony nano bc socat jq python3 python3-pip python3-setuptools \
+  python3.11 python3.11-pip python3.11-setuptools \
   tcpdump wireshark wireshark-cli freerdp \
   java-1.8.0-openjdk java-1.8.0-openjdk-devel \
   java-11-openjdk java-11-openjdk-devel \
@@ -71,7 +77,7 @@ dnf -y install \
   firefox evince gnome-terminal gnome-system-monitor \
   psmisc procps-ng which file less diffutils
 
-echo "==> EPEL extras (required offline tree: htop, nload, pv, keepassxc, rdesktop)"
+echo "==> EPEL extras (htop, nload, pv, keepassxc, rdesktop)"
 if [[ -d "$MNT/EPEL/repodata" || -d "$MNT/EPEL/Packages" ]]; then
   dnf -y install htop nload pv keepassxc rdesktop
 else
@@ -79,11 +85,25 @@ else
   exit 1
 fi
 
-echo "==> pipx (no RHEL/EPEL 8 RPM — install via pip if network or local wheels available)"
-if python3 -m pip install --user pipx 2>/dev/null; then
-  echo "pipx installed via pip --user"
+echo "==> Python wheels (offline pip — pipx and friends)"
+if [[ -d "$WHEEL_DIR" ]] && compgen -G "$WHEEL_DIR/*.whl" >/dev/null; then
+  REQ="$WHEEL_DIR/requirements.txt"
+  if [[ ! -f "$REQ" ]]; then
+    # fall back to installing every wheel present
+    echo "No requirements.txt in $WHEEL_DIR — installing all .whl files"
+    python3.11 -m pip install --no-index --find-links="$WHEEL_DIR" "$WHEEL_DIR"/*.whl
+  else
+    python3.11 -m pip install --no-index --find-links="$WHEEL_DIR" -r "$REQ"
+  fi
+  # Ensure pipx is on PATH for the invoking user later
+  if command -v pipx >/dev/null 2>&1 || python3.11 -m pipx --version >/dev/null 2>&1; then
+    echo "pipx available"
+    python3.11 -m pipx ensurepath 2>/dev/null || true
+  fi
 else
-  echo "NOTE: skipped pipx (no RPM on RHEL/EPEL 8; offline pip wheels not staged). python3-pip is installed."
+  echo "ERROR: Python wheels not found at $WHEEL_DIR" >&2
+  echo "On build host: ./scripts/07-fetch-python-wheels.sh" >&2
+  exit 1
 fi
 
 echo "==> Server with GUI (if not already installed)"
@@ -94,3 +114,4 @@ systemctl set-default graphical.target || true
 echo "Extra package pass complete."
 rpm -qa | wc -l
 echo "sshd active? $(systemctl is-active sshd 2>/dev/null || echo n/a)"
+command -v pipx >/dev/null && pipx --version || python3.11 -m pip show pipx | head -3 || true

@@ -3,12 +3,13 @@
 | You asked for | RHEL 8 package / notes |
 |---------------|-------------------------|
 | chrony | `chrony` (preferred NTP client/server) |
-| ntpdate | `ntpdate` (legacy one-shot; optional if chrony is enough) |
 | nano | `nano` |
 | bc | `bc` |
 | socat | `socat` |
 | jq | `jq` |
-| python 3 + pip + pipx | `python3`, `python3-pip`, `python3-setuptools`, `pipx` |
+| python 3 + pip | `python3`, `python3-pip`, `python3-setuptools` |
+| python 3.11 (for pipx) | `python3.11`, `python3.11-pip`, `python3.11-setuptools` |
+| pipx | **No RPM** — staged as **wheels** via `packages/python-extra.txt` + `./scripts/07-fetch-python-wheels.sh` |
 | tcpdump | `tcpdump` |
 | java 8 | `java-1.8.0-openjdk` (+ `-devel` / `-headless` as needed) |
 | java 11 | `java-11-openjdk` (+ `-devel` / `-headless`) |
@@ -29,8 +30,8 @@
 | rdesktop | Classic client is **EPEL** `rdesktop`; RHEL AppStream has **`freerdp`** (`xfreerdp`) |
 | keepassx | Abandoned upstream; use **EPEL `keepassxc`** (KeepassXC) |
 | pv | **`pv` — EPEL 8 only** (pipe viewer) |
-| pipx | **No RPM** on RHEL 8 AppStream **or** EPEL 8 (verified). Use `python3 -m pip install --user pipx` (needs PyPI or pre-staged wheels). |
-| ntpdate | **Not in RHEL 8** — use `chrony` / `chronyc` |
+| pipx | **No RPM** on RHEL 8 / EPEL 8. **Pre-stage wheels** (`python-extra.txt` → `out/offline-repo/python-wheels/`). Install with `python3.11 -m pip install --no-index --find-links=…`. |
+| ntpdate | **Removed** — not in RHEL 8; use `chrony` / `chronyc`. |
 
 See `docs/ADDING-PACKAGES.md` for how to add more packages and re-sync.
 

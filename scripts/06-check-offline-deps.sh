@@ -22,6 +22,7 @@ CONTAINER_NAME="${CONTAINER_NAME:-rhel8-reposync}"
 # Packages installed by post-install-extra.sh (keep in sync with that script)
 RHEL_PKGS=(
   chrony nano bc socat jq python3 python3-pip python3-setuptools
+  python3.11 python3.11-pip python3.11-setuptools
   tcpdump wireshark wireshark-cli freerdp
   java-1.8.0-openjdk java-1.8.0-openjdk-devel
   java-11-openjdk java-11-openjdk-devel
@@ -35,7 +36,7 @@ RHEL_PKGS=(
   psmisc procps-ng which file less diffutils
 )
 EPEL_PKGS=(htop nload pv keepassxc rdesktop)
-# pipx: no RPM on RHEL 8 / EPEL 8 — not checked here
+# pipx: wheels in python-wheels/ — not an RPM check
 # Optional heavy group (set CHECK_GUI_GROUP=1 to include)
 CHECK_GUI_GROUP="${CHECK_GUI_GROUP:-0}"
 

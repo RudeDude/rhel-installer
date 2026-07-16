@@ -3,7 +3,6 @@
 
 # --- Time / clocks ---
 chrony
-# ntpdate: NOT in RHEL 8 BaseOS/AppStream (removed with classic ntp). Use chrony (chronyc).
 
 # --- Editors / terminal UX ---
 nano
@@ -31,7 +30,7 @@ wireshark
 wireshark-cli
 # RDP client: classic "rdesktop" is EPEL; RHEL ships freerdp (xfreerdp)
 freerdp
-# Interactive bandwidth monitor nload → packages/epel-extra.txt (EPEL)
+# nload → packages/epel-extra.txt (EPEL)
 
 # --- Admin / process / transfer ---
 # htop, pv → packages/epel-extra.txt (EPEL)
@@ -52,9 +51,12 @@ python3
 python3-pip
 python3-setuptools
 python3-devel
-# pipx: no RPM on RHEL 8 AppStream or EPEL 8. After install use:
-#   python3 -m pip install --user pipx
-# (optionally pre-stage wheels on the USB for air-gapped pip)
+# Modern interpreter for offline pipx / wheels (base python3 is often 3.6)
+python3.11
+python3.11-pip
+python3.11-setuptools
+# Python apps (pipx, …) are staged as wheels — packages/python-extra.txt
+# + ./scripts/07-fetch-python-wheels.sh → out/offline-repo/python-wheels/
 
 # --- Java (OpenJDK 8 / 11 / 17) ---
 # Debian-style openjdk-17-jdk → java-17-openjdk-devel on RHEL
