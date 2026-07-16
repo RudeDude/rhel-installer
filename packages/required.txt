@@ -1,0 +1,57 @@
+# Required packages for air-gapped RHEL 8.10 (one name per line)
+# Lines starting with # are comments. Use real RHEL package names.
+
+# --- Time / clocks ---
+chrony
+# ntpdate is legacy; still useful for one-shot set. Prefer chrony long-term.
+ntpdate
+
+# --- Editors / terminal UX ---
+nano
+vim-enhanced
+tmux
+gedit
+
+# --- Shell / calc / misc CLI ---
+bc
+tree
+# util-linux-extra is a Debian name; on RHEL these live in util-linux and friends:
+util-linux
+util-linux-user
+
+# --- Networking / debug ---
+socat
+tcpdump
+net-tools
+bind-utils
+iputils
+iproute
+nmap-ncat
+
+# --- Data / scripting ---
+jq
+python3
+python3-pip
+python3-setuptools
+python3-devel
+# pipx is available in RHEL 8 AppStream on current 8.10 streams
+pipx
+
+# --- Java ---
+java-1.8.0-openjdk
+java-1.8.0-openjdk-devel
+java-1.8.0-openjdk-headless
+java-11-openjdk
+java-11-openjdk-devel
+java-11-openjdk-headless
+
+# --- Archive / transfer (commonly needed offline) ---
+rsync
+curl
+wget
+tar
+gzip
+bzip2
+xz
+unzip
+zip

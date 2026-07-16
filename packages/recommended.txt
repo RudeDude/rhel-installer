@@ -1,0 +1,30 @@
+# Selected extras for this project (air-gapped server + GUI).
+# Included when INCLUDE_RECOMMENDED=yes in config.env.
+
+# --- Admin / observability (user-selected) ---
+htop
+iotop
+sysstat
+lsof
+strace
+bash-completion
+man-pages
+man-db
+
+# --- Desktop extras (user-selected) ---
+firefox
+evince
+gnome-terminal
+gnome-system-monitor
+
+# --- Automation (git only; no gcc/make toolchain) ---
+git
+
+# --- Small CLI helpers commonly needed offline ---
+psmisc
+procps-ng
+which
+file
+less
+diffutils
+rsync

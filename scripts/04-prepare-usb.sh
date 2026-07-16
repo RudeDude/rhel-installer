@@ -1,0 +1,491 @@
+#!/usr/bin/env bash
+# Step 4: Write bootable installer + offline package partition to a USB disk.
+#
+# Layout after success:
+#   [0 .. ISO image]  isohybrid RHEL installer (dd of custom kickstart ISO)
+#   [after ISO .. end] ext4 partition LABEL=RHEL8OFFLINE with BaseOS/ AppStream/ ...
+#
+# Usage:
+#   ./scripts/04-prepare-usb.sh --dry-run [/dev/sdb]   # review only (no root required)
+#   sudo ./scripts/04-prepare-usb.sh /dev/sdb          # DESTRUCTIVE write
+#   sudo ./scripts/04-prepare-usb.sh --yes /dev/sdb    # skip YES prompt (still destructive)
+#
+# Defaults DEVICE from config.env USB_DEVICE if set.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$ROOT/config.env" ]]; then
+  # shellcheck disable=SC1091
+  set +u
+  source "$ROOT/config.env"
+  set -u
+fi
+
+# Resolve relative paths from project root
+cd "$ROOT"
+
+DRY_RUN=0
+ASSUME_YES=0
+ALLOW_INCOMPLETE_REPO=0
+ALLOW_STOCK_ISO=0
+DEVICE=""
+
+usage() {
+  cat <<EOF
+Usage: $0 [options] [DEVICE]
+
+Options:
+  --dry-run              Print the plan and preflight checks; do not write
+  --yes                  Do not prompt for YES (still requires root for real run)
+  --allow-incomplete-repo
+                         Proceed even if AppStream/BaseOS look incomplete
+  --allow-stock-iso      Allow SOURCE_ISO if custom kickstart ISO is missing
+  -h, --help             This help
+
+DEVICE defaults to USB_DEVICE from config.env (currently: ${USB_DEVICE:-unset})
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --yes) ASSUME_YES=1; shift ;;
+    --allow-incomplete-repo) ALLOW_INCOMPLETE_REPO=1; shift ;;
+    --allow-stock-iso) ALLOW_STOCK_ISO=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      DEVICE="$1"
+      shift
+      ;;
+  esac
+done
+
+DEVICE="${DEVICE:-${USB_DEVICE:-}}"
+CUSTOM_ISO="${OUT_ISO:-$ROOT/out/rhel-8.10-airgap-ks.iso}"
+SOURCE_ISO_PATH="${SOURCE_ISO:-$ROOT/rhel-8.10-fips-stig.iso}"
+# Resolve relative SOURCE_ISO against project root
+if [[ "$SOURCE_ISO_PATH" != /* ]]; then
+  SOURCE_ISO_PATH="$ROOT/${SOURCE_ISO_PATH#./}"
+fi
+REPO_DIR_CFG="${REPO_DIR:-$ROOT/out/offline-repo}"
+if [[ "$REPO_DIR_CFG" != /* ]]; then
+  REPO_DIR_CFG="$ROOT/${REPO_DIR_CFG#./}"
+fi
+REPO_DIR="$REPO_DIR_CFG"
+USB_REPO_LABEL="${USB_REPO_LABEL:-RHEL8OFFLINE}"
+ISO=""
+
+hr() { printf '%s\n' "------------------------------------------------------------"; }
+
+pick_iso() {
+  if [[ -f "$CUSTOM_ISO" ]]; then
+    ISO="$CUSTOM_ISO"
+    echo "ISO: custom kickstart image"
+    echo "     $ISO"
+    return 0
+  fi
+  if [[ "$ALLOW_STOCK_ISO" -eq 1 || "$DRY_RUN" -eq 1 ]]; then
+    if [[ -f "$SOURCE_ISO_PATH" ]]; then
+      ISO="$SOURCE_ISO_PATH"
+      echo "ISO: STOCK source (kickstart NOT injected yet)"
+      echo "     $ISO"
+      echo "     Build custom ISO with: ./scripts/02-generate-kickstart.sh && ./scripts/03-inject-kickstart.sh"
+      return 0
+    fi
+  fi
+  echo "ERROR: Custom ISO not found: $CUSTOM_ISO" >&2
+  echo "  1) Set password hashes in config.env" >&2
+  echo "  2) ./scripts/02-generate-kickstart.sh" >&2
+  echo "  3) ./scripts/03-inject-kickstart.sh" >&2
+  echo "  Or re-run with --allow-stock-iso to write the unpatched FIPS ISO (not recommended for final media)." >&2
+  return 1
+}
+
+bytes_human() {
+  local b="$1"
+  if command -v numfmt >/dev/null 2>&1; then
+    numfmt --to=iec --suffix=B "$b"
+  else
+    echo "${b} bytes"
+  fi
+}
+
+preflight() {
+  local rc=0
+  echo "==> Preflight"
+  hr
+
+  if [[ -z "$DEVICE" ]]; then
+    echo "ERROR: No DEVICE. Pass /dev/sdb or set USB_DEVICE in config.env" >&2
+    lsblk -d -o NAME,SIZE,MODEL,TRAN,TYPE | sed 's/^/  /' || true
+    return 1
+  fi
+
+  if [[ ! -b "$DEVICE" ]]; then
+    echo "ERROR: Not a block device: $DEVICE" >&2
+    return 1
+  fi
+
+  # Never operate on the disk that backs /
+  local root_src
+  root_src="$(findmnt -n -o SOURCE / || true)"
+  if [[ -n "$root_src" ]] && [[ "$root_src" == "$DEVICE"* ]]; then
+    echo "ERROR: $DEVICE appears to back root filesystem ($root_src). Aborting." >&2
+    return 1
+  fi
+  if findmnt -n "$DEVICE" >/dev/null 2>&1; then
+    echo "WARN: $DEVICE or a child is mounted — will unmount before write (real run only)."
+  fi
+
+  # Prefer USB-attached disks
+  local bus model serial size
+  bus="$(lsblk -dn -o TRAN "$DEVICE" 2>/dev/null || true)"
+  model="$(lsblk -dn -o MODEL "$DEVICE" 2>/dev/null || true)"
+  serial="$(lsblk -dn -o SERIAL "$DEVICE" 2>/dev/null || true)"
+  size="$(lsblk -dn -o SIZE "$DEVICE" 2>/dev/null || true)"
+  echo "Device:  $DEVICE"
+  echo "  size:  $size"
+  echo "  model: $model"
+  echo "  serial:$serial"
+  echo "  tran:  ${bus:-unknown}"
+  if [[ "${bus}" != "usb" && "${bus}" != "USB" ]]; then
+    echo "WARN: transport is '${bus:-unknown}', not 'usb'. Double-check this is the stick you intend."
+  fi
+
+  echo
+  lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT,MODEL "$DEVICE" || true
+  echo
+
+  pick_iso || rc=1
+  if [[ -n "$ISO" && -f "$ISO" ]]; then
+    local iso_bytes
+    iso_bytes="$(stat -c%s "$ISO")"
+    echo "  size:  $(bytes_human "$iso_bytes") ($iso_bytes bytes)"
+  fi
+
+  echo
+  echo "Repo:  $REPO_DIR  ->  partition label $USB_REPO_LABEL"
+  if [[ ! -d "$REPO_DIR" ]]; then
+    echo "ERROR: REPO_DIR missing: $REPO_DIR" >&2
+    rc=1
+  else
+    du -sh "$REPO_DIR" 2>/dev/null || true
+    for d in BaseOS AppStream CodeReadyBuilder; do
+      if [[ -d "$REPO_DIR/$d" ]]; then
+        local n
+        n="$(find "$REPO_DIR/$d" -name '*.rpm' 2>/dev/null | wc -l)"
+        printf '  %-18s %s  rpms=%s\n' "$d" "$(du -sh "$REPO_DIR/$d" 2>/dev/null | awk '{print $1}')" "$n"
+      else
+        printf '  %-18s MISSING\n' "$d"
+      fi
+    done
+    local total_rpms
+    total_rpms="$(find "$REPO_DIR" -name '*.rpm' 2>/dev/null | wc -l)"
+    echo "  total rpms: $total_rpms"
+    if [[ ! -d "$REPO_DIR/BaseOS" || ! -d "$REPO_DIR/AppStream" ]]; then
+      echo "ERROR: BaseOS and AppStream directories are required under $REPO_DIR" >&2
+      rc=1
+    fi
+    local sync_running=0
+    if docker top rhel8-reposync 2>/dev/null | grep -q 'dnf reposync'; then
+      sync_running=1
+      echo "WARN: reposync is still running in container rhel8-reposync"
+    fi
+    if [[ ! -d "$REPO_DIR/CodeReadyBuilder" ]]; then
+      echo "WARN: CodeReadyBuilder not present yet (optional but useful)"
+    fi
+    if [[ "$total_rpms" -lt 2000 ]]; then
+      echo "ERROR: Repo looks incomplete ($total_rpms RPMs)." >&2
+      rc=1
+    fi
+    # Block real writes while download is still active unless explicitly allowed
+    if [[ "$sync_running" -eq 1 && "$ALLOW_INCOMPLETE_REPO" -eq 0 ]]; then
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo "NOTE: Real sudo run will REFUSE while reposync is active (unless --allow-incomplete-repo)."
+        echo "      Wait for ALL_SYNC_COMPLETE in the download log first."
+      else
+        echo "ERROR: Offline repo download still in progress." >&2
+        echo "       Wait for ALL_SYNC_COMPLETE in out/logs/LATEST_DOWNLOAD, or pass" >&2
+        echo "       --allow-incomplete-repo to write a partial tree now." >&2
+        rc=1
+      fi
+    fi
+  fi
+
+  echo
+  echo "Helpers that will be copied onto the data partition:"
+  [[ -f "$ROOT/out/ks.cfg" ]] && echo "  ks: $ROOT/out/ks.cfg" || echo "  ks: (missing out/ks.cfg — run step 2)"
+  [[ -f "$ROOT/scripts/post-install-extra.sh" ]] && echo "  scripts/post-install-extra.sh" || echo "  post-install-extra.sh missing"
+
+  echo
+  echo "Required tools:"
+  local t
+  for t in dd sgdisk parted mkfs.ext4 rsync wipefs partprobe blockdev; do
+    if command -v "$t" >/dev/null 2>&1; then
+      echo "  OK  $t"
+    else
+      echo "  MISSING  $t"
+      rc=1
+    fi
+  done
+
+  hr
+  if [[ "$rc" -ne 0 ]]; then
+    echo "Preflight FAILED (see ERROR lines above)."
+  else
+    echo "Preflight OK."
+  fi
+  return "$rc"
+}
+
+plan() {
+  local iso_bytes start_mib
+  iso_bytes="$(stat -c%s "$ISO")"
+  start_mib=$(( (iso_bytes / 1048576) + 2 ))
+  echo "==> Write plan for $DEVICE"
+  hr
+  cat <<EOF
+1. Unmount any mounted partitions on $DEVICE
+2. dd if=$ISO of=$DEVICE bs=4M conv=fsync status=progress
+   - Writes isohybrid installer to the start of the disk
+3. Create a Linux partition in free space starting at ~${start_mib} MiB to end of disk
+4. mkfs.ext4 -L $USB_REPO_LABEL <new-partition>
+5. rsync -aH $REPO_DIR/ -> mounted data partition
+6. Copy ks.cfg + post-install-extra.sh helpers
+7. sync + unmount
+
+RESULT:
+  - Bootable FIPS/STIG (or custom) installer at the beginning of $DEVICE
+  - Offline repos on ext4 LABEL=$USB_REPO_LABEL for kickstart %post / dnf later
+
+DESTRUCTIVE: existing partitions on $DEVICE will be destroyed
+  (currently has whatever lsblk showed in preflight).
+EOF
+  hr
+}
+
+resolve_data_part() {
+  # Prefer the partition whose start (bytes) is past the ISO image
+  local iso_bytes start_bytes part pstart
+  iso_bytes="$(stat -c%s "$ISO")"
+  start_bytes=$(( ((iso_bytes / 1048576) + 2) * 1048576 ))
+
+  # Wait for udev
+  partprobe "$DEVICE" 2>/dev/null || true
+  sleep 1
+  udevadm settle 2>/dev/null || true
+
+  local best="" best_start=0
+  while read -r part pstart; do
+    [[ -z "$part" || -z "$pstart" ]] && continue
+    # pstart from lsblk -b -n -o NAME,START is in sectors on some versions;
+    # use /sys for reliability
+    local sys="/sys/block/$(basename "$DEVICE")/$(basename "$part")/start"
+    local sectors=0
+    if [[ -f "$sys" ]]; then
+      sectors="$(cat "$sys")"
+    fi
+    local byte_start=$(( sectors * 512 ))
+    if (( byte_start >= start_bytes - 1048576 )); then
+      if [[ -z "$best" || "$byte_start" -gt "$best_start" ]]; then
+        best="/dev/$(basename "$part")"
+        # if lsblk gave full path already
+        if [[ -b "/dev/$(basename "$part")" ]]; then
+          best="/dev/$(basename "$part")"
+        fi
+        best_start=$byte_start
+      fi
+    fi
+  done < <(lsblk -ln -o NAME "$DEVICE" | tail -n +2)
+
+  # Fallback: highest-numbered partition node
+  if [[ -z "$best" || ! -b "$best" ]]; then
+    if [[ "$DEVICE" == *nvme* || "$DEVICE" == *mmcblk* ]]; then
+      for n in 4 3 2 1; do
+        [[ -b "${DEVICE}p${n}" ]] && best="${DEVICE}p${n}" && break
+      done
+    else
+      for n in 4 3 2 1; do
+        [[ -b "${DEVICE}${n}" ]] && best="${DEVICE}${n}" && break
+      done
+    fi
+  fi
+
+  # Prefer largest partition that is not the tiny ISO hybrid partitions
+  if [[ -n "$best" && -b "$best" ]]; then
+    echo "$best"
+    return 0
+  fi
+  return 1
+}
+
+do_write() {
+  if [[ "$(id -u)" -ne 0 ]]; then
+    echo "ERROR: Real write requires root. Use: sudo $0 $DEVICE" >&2
+    exit 1
+  fi
+
+  if [[ "$ASSUME_YES" -ne 1 ]]; then
+    echo
+    echo "************************************************************"
+    echo " THIS WILL ERASE ALL DATA ON: $DEVICE"
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT,MODEL "$DEVICE" || true
+    echo " ISO:  $ISO"
+    echo " REPO: $REPO_DIR -> LABEL=$USB_REPO_LABEL"
+    echo "************************************************************"
+    read -r -p "Type YES to continue: " ans
+    [[ "$ans" == "YES" ]] || { echo "Aborted."; exit 1; }
+  fi
+
+  echo "==> Unmounting any filesystems on $DEVICE"
+  # Unmount children first
+  local m
+  while read -r m; do
+    [[ -z "$m" ]] && continue
+    umount "$m" 2>/dev/null || umount -l "$m" 2>/dev/null || true
+  done < <(lsblk -ln -o MOUNTPOINT "$DEVICE" | grep -v '^$' | tac || true)
+
+  echo "==> Writing isohybrid ISO to $DEVICE (this takes a few minutes for ~3GB)"
+  dd if="$ISO" of="$DEVICE" bs=4M status=progress conv=fsync oflag=direct
+  sync
+  partprobe "$DEVICE" || true
+  sleep 2
+
+  local iso_bytes start_mib
+  iso_bytes="$(stat -c%s "$ISO")"
+  start_mib=$(( (iso_bytes / 1048576) + 2 ))
+  echo "==> Creating offline-repo partition starting at ${start_mib}MiB"
+
+  # Hybrid ISO already has a partition table. Create one more partition in free space.
+  if command -v sgdisk >/dev/null 2>&1; then
+    sgdisk -p "$DEVICE" || true
+    # Delete any partition that might already occupy free space from a previous attempt? leave ISO parts.
+    # Auto number, start MiB, end of disk
+    if ! sgdisk -n "0:${start_mib}M:0" -t "0:8300" -c "0:${USB_REPO_LABEL}" "$DEVICE"; then
+      echo "sgdisk failed; trying parted" >&2
+      parted -s "$DEVICE" unit MiB mkpart "${USB_REPO_LABEL}" ext4 "${start_mib}" 100%
+    fi
+  else
+    parted -s "$DEVICE" unit MiB mkpart "${USB_REPO_LABEL}" ext4 "${start_mib}" 100%
+  fi
+
+  partprobe "$DEVICE" || true
+  sleep 2
+  udevadm settle 2>/dev/null || true
+  lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT,START "$DEVICE" || true
+
+  local DATA_PART
+  DATA_PART="$(resolve_data_part || true)"
+  # Prefer largest non-vfat partition if heuristic failed
+  if [[ -z "${DATA_PART:-}" || ! -b "${DATA_PART:-/dev/null}" ]]; then
+    DATA_PART="$(lsblk -ln -b -o NAME,SIZE,FSTYPE "$DEVICE" | awk 'NR>0 && $1 !~ /^'"$(basename "$DEVICE")"'$/ {print $1,$2}' | sort -k2 -n | tail -1 | awk '{print "/dev/"$1}')"
+  fi
+
+  if [[ -z "${DATA_PART:-}" || ! -b "$DATA_PART" ]]; then
+    echo "ERROR: Could not determine data partition on $DEVICE" >&2
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,START "$DEVICE" || true
+    exit 1
+  fi
+
+  # Safety: never format a tiny hybrid EFI partition by mistake
+  local part_bytes
+  part_bytes="$(blockdev --getsize64 "$DATA_PART")"
+  if (( part_bytes < 5 * 1024 * 1024 * 1024 )); then
+    echo "ERROR: Refusing to format $DATA_PART — only $(bytes_human "$part_bytes"); expected multi‑GB repo partition." >&2
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,START "$DEVICE" || true
+    exit 1
+  fi
+
+  echo "==> Formatting $DATA_PART as ext4 LABEL=$USB_REPO_LABEL ($(bytes_human "$part_bytes"))"
+  mkfs.ext4 -F -L "$USB_REPO_LABEL" "$DATA_PART"
+
+  local MNT
+  MNT="$(mktemp -d)"
+  mount "$DATA_PART" "$MNT"
+  echo "==> Copying offline repository (rsync) — can take a long time"
+  if [[ -d "$REPO_DIR" ]]; then
+    rsync -aH --info=progress2 "$REPO_DIR"/ "$MNT"/
+  else
+    echo "WARN: REPO_DIR missing during copy" >&2
+  fi
+
+  mkdir -p "$MNT/ks" "$MNT/scripts"
+  if [[ -f "$ROOT/out/ks.cfg" ]]; then
+    cp -a "$ROOT/out/ks.cfg" "$MNT/ks/ks.cfg"
+  else
+    echo "WARN: out/ks.cfg missing — not copied"
+  fi
+  if [[ -f "$ROOT/scripts/post-install-extra.sh" ]]; then
+    cp -a "$ROOT/scripts/post-install-extra.sh" "$MNT/scripts/"
+  fi
+
+  cat > "$MNT/README-ON-MEDIA.txt" <<EOF
+RHEL 8.10 air-gapped media
+Created: $(date -Is)
+Installer ISO written to start of this USB: $(basename "$ISO")
+Repo filesystem label: $USB_REPO_LABEL
+
+Layout:
+  BaseOS/
+  AppStream/
+  CodeReadyBuilder/   (if synced)
+  ks/ks.cfg
+  scripts/post-install-extra.sh
+
+On installed system:
+  sudo enable-offline-repos.sh   # if kickstart %post installed helpers
+  # or:
+  sudo mkdir -p /mnt/rhel8offline
+  sudo mount -L $USB_REPO_LABEL /mnt/rhel8offline
+EOF
+
+  sync
+  umount "$MNT"
+  rmdir "$MNT"
+
+  echo
+  echo "=============================="
+  echo " USB ready: $DEVICE"
+  echo " Installer: dd of $ISO"
+  echo " Offline repos: $DATA_PART LABEL=$USB_REPO_LABEL"
+  lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT "$DEVICE" || true
+  echo "=============================="
+  echo "Boot the target from this USB (UEFI preferred)."
+  echo "Kickstart offline repos use LABEL=$USB_REPO_LABEL."
+}
+
+# --- main ---
+echo "RHEL air-gap USB preparer (step 4)"
+echo "Project: $ROOT"
+echo
+
+if ! preflight; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo
+    echo "Dry-run finished with preflight issues (no writes performed)."
+    # Still show plan if we at least have an ISO path candidate
+    if [[ -n "${ISO:-}" && -f "${ISO:-}" ]]; then
+      plan
+    fi
+    exit 1
+  fi
+  exit 1
+fi
+
+plan
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  echo
+  echo "DRY-RUN complete — no changes written."
+  echo "When ready (after reposync + custom ISO build):"
+  echo "  sudo $0 ${DEVICE}"
+  echo "Optional flags: --yes  --allow-incomplete-repo  --allow-stock-iso"
+  exit 0
+fi
+
+do_write

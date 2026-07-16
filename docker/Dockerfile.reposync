@@ -1,0 +1,18 @@
+# Reposync helper image based on public UBI 8.
+# Full RHEL repos (and createrepo_c) become available after subscription-manager register at runtime.
+FROM registry.access.redhat.com/ubi8/ubi:8.10
+
+USER root
+# Only packages available on unregistered UBI
+RUN dnf -y install \
+        subscription-manager \
+        dnf-plugins-core \
+        findutils \
+        which \
+        rsync \
+    && dnf clean all || true
+
+WORKDIR /repo
+VOLUME ["/repo"]
+
+CMD ["/bin/bash"]

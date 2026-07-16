@@ -1,0 +1,16 @@
+# Kickstart/comps group names (one per line). Leading @ is added by generator if missing.
+# Prefer groups that exist on RHEL 8.10 DVD/CDN comps metadata.
+
+# Minimal base always comes from @core / @base via environment
+# "Server with GUI" style:
+graphical-server-environment
+
+# Useful extras that stay reasonable on air-gapped servers:
+standard
+hardware-monitoring
+system-tools
+# Development tools (uncomment if you want compilers by default)
+# development
+
+# Container management (uncomment if using podman heavily)
+# container-management

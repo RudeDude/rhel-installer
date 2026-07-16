@@ -1,0 +1,6 @@
+config.env
+out/
+*.log
+.password
+secrets/
+rhel*.iso
