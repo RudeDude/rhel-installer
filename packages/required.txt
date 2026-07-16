@@ -27,16 +27,25 @@ bind-utils
 iputils
 iproute
 nmap-ncat
-# Interactive bandwidth monitor (RHEL AppStream/BaseOS do NOT ship this — see epel-extra.txt)
-# nload is listed in packages/epel-extra.txt and installed when EPEL offline tree is present
+# GUI + CLI packet capture (AppStream)
+wireshark
+wireshark-cli
+# RDP client: classic "rdesktop" is EPEL; RHEL ships freerdp (xfreerdp)
+freerdp
+# Interactive bandwidth monitor nload → packages/epel-extra.txt (EPEL)
 
 # --- Admin / process / transfer ---
-# htop is EPEL-only on RHEL 8 — see packages/epel-extra.txt
+# htop, pv → packages/epel-extra.txt (EPEL)
 rsync
 # sshd service package (usually already on Server images; pin explicitly)
 openssh
 openssh-server
 openssh-clients
+
+# --- Git / VCS ---
+git
+gitk
+git-lfs
 
 # --- Data / scripting ---
 jq
@@ -47,13 +56,17 @@ python3-devel
 # pipx is available in RHEL 8 AppStream on current 8.10 streams
 pipx
 
-# --- Java ---
+# --- Java (OpenJDK 8 / 11 / 17) ---
+# Debian-style openjdk-17-jdk → java-17-openjdk-devel on RHEL
 java-1.8.0-openjdk
 java-1.8.0-openjdk-devel
 java-1.8.0-openjdk-headless
 java-11-openjdk
 java-11-openjdk-devel
 java-11-openjdk-headless
+java-17-openjdk
+java-17-openjdk-devel
+java-17-openjdk-headless
 
 # --- Archive / transfer (commonly needed offline) ---
 curl

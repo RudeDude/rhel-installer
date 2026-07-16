@@ -22,6 +22,13 @@
 | sshd | service name; package is `openssh-server` (+ `openssh`, `openssh-clients`) |
 | htop | **`htop` — EPEL 8 only**, not in RHEL BaseOS/AppStream/CRB |
 | nload | **`nload` — EPEL 8 only** |
+| wireshark | `wireshark` + `wireshark-cli` (AppStream) |
+| gitk | `gitk` (AppStream; with `git`) |
+| git-lfs | `git-lfs` (AppStream) |
+| openjdk-17-jdk | `java-17-openjdk-devel` (+ `java-17-openjdk`, `-headless`) |
+| rdesktop | Classic client is **EPEL** `rdesktop`; RHEL AppStream has **`freerdp`** (`xfreerdp`) |
+| keepassx | Abandoned upstream; use **EPEL `keepassxc`** (KeepassXC) |
+| pv | **`pv` — EPEL 8 only** (pipe viewer) |
 
 See `docs/ADDING-PACKAGES.md` for how to add more packages and re-sync.
 

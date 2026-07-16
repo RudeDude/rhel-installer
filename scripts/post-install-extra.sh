@@ -51,25 +51,28 @@ dnf -y upgrade || true
 echo "==> Core required packages (RHEL repos)"
 dnf -y install \
   chrony ntpdate nano bc socat jq python3 python3-pip python3-setuptools pipx \
-  tcpdump java-1.8.0-openjdk java-1.8.0-openjdk-devel \
+  tcpdump wireshark wireshark-cli freerdp \
+  java-1.8.0-openjdk java-1.8.0-openjdk-devel \
   java-11-openjdk java-11-openjdk-devel \
+  java-17-openjdk java-17-openjdk-devel java-17-openjdk-headless \
   vim-enhanced tmux net-tools gedit tree util-linux util-linux-user \
   rsync openssh openssh-server openssh-clients \
+  git gitk git-lfs \
   curl wget tar unzip zip bind-utils nmap-ncat || true
 
 systemctl enable --now sshd 2>/dev/null || systemctl enable sshd 2>/dev/null || true
 
-echo "==> Selected extras (admin/observability + desktop + git)"
+echo "==> Selected extras (admin/observability + desktop)"
 dnf -y install \
   iotop sysstat lsof strace bash-completion man-pages man-db \
   firefox evince gnome-terminal gnome-system-monitor \
-  git psmisc procps-ng which file less diffutils || true
+  psmisc procps-ng which file less diffutils || true
 
-echo "==> EPEL extras when offline EPEL tree is present (htop, nload)"
+echo "==> EPEL extras when offline EPEL tree is present"
 if [[ -d "$MNT/EPEL/repodata" || -d "$MNT/EPEL/Packages" ]]; then
-  dnf -y install htop nload || true
+  dnf -y install htop nload pv keepassxc rdesktop || true
 else
-  echo "NOTE: htop/nload need EPEL. On the build host run: ./scripts/05-fetch-epel-packages.sh"
+  echo "NOTE: htop/nload/pv/keepassxc/rdesktop need EPEL. On the build host: ./scripts/05-fetch-epel-packages.sh"
 fi
 
 echo "==> Server with GUI (if not already installed)"

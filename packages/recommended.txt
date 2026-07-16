@@ -17,8 +17,8 @@ evince
 gnome-terminal
 gnome-system-monitor
 
-# --- Automation (git only; no gcc/make toolchain) ---
-git
+# --- Automation (git is also in required.txt with gitk/git-lfs) ---
+# no gcc/make toolchain by default
 
 # --- Small CLI helpers commonly needed offline ---
 psmisc

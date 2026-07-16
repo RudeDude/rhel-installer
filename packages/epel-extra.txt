@@ -4,5 +4,14 @@
 #
 # Confirm names on a registered host:  dnf search <name>  (with epel enabled)
 
+# Admin / monitoring
 htop
 nload
+pv
+
+# Password manager: KeepassX is abandoned; EPEL provides KeepassXC (compatible successor)
+keepassxc
+# keepassx   # often unavailable; prefer keepassxc
+
+# Classic RDP client (optional; freerdp/xfreerdp is already in required.txt from AppStream)
+rdesktop
