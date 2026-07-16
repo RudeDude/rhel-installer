@@ -84,7 +84,13 @@ dnf info rsync openssh-server
    ./scripts/03-fetch-python-wheels.sh
    ```
 
-   This runs `pip download -r … -d out/offline-repo/python-wheels/` and pulls **dependencies as wheels**.
+   This runs `pip download` **with full dependency resolution** (never `--no-deps`),
+   optionally stages `pip`/`setuptools`/`wheel`, then **verifies** offline install:
+
+   ```bash
+   pip install --no-index --find-links=python-wheels -r requirements.txt --dry-run
+   # (in a temp venv; fails the script if any dep is missing)
+   ```
 
    Config in `config.env` (optional):
 
@@ -92,6 +98,9 @@ dnf info rsync openssh-server
    PYTHON_EXTRA_FILE="packages/python-extra.txt"
    PYTHON_WHEEL_DIR="out/offline-repo/python-wheels"
    PYTHON_PIP="python3 -m pip"
+   PYTHON_TARGET_VERSION="311"          # match RHEL python3.11 tags
+   PYTHON_INCLUDE_PIP_BOOTSTRAP="yes"
+   PYTHON_VERIFY_OFFLINE="yes"
    ```
 
 3. Ensure RHEL media includes a modern interpreter (in `required.txt`):
