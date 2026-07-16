@@ -117,5 +117,8 @@ echo
 echo "Count: $(find "$WHEEL_DIR" -type f \( -name '*.whl' -o -name '*.tar.gz' \) | wc -l) artifacts"
 du -sh "$WHEEL_DIR"
 echo
-echo "DONE. Next: include this directory on the USB (step 4 rsync of offline-repo)."
-echo "  Re-fetch anytime after editing $PKG_FILE"
+echo "DONE. Wheels staged under $WHEEL_DIR"
+echo "Next: ./scripts/04-check-offline-deps.sh   # optional"
+echo "Then: ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
+echo "Then: sudo ./scripts/07-prepare-usb.sh /dev/sdb   # copies wheels + RPMs + docs to USB"
+echo "Re-fetch anytime after editing $PKG_FILE"

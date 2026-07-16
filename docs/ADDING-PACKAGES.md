@@ -30,8 +30,8 @@ No re-download of the whole repo is required.
 3. Rebuild kickstart (and ISO if you inject it):
 
    ```bash
-   ./scripts/02-generate-kickstart.sh
-   ./scripts/03-inject-kickstart.sh
+   ./scripts/05-generate-kickstart.sh
+   ./scripts/06-inject-kickstart.sh
    ```
 
 4. On next USB write, the updated `ks.cfg` is copied automatically. The RPM is already under `out/offline-repo/`.
@@ -59,7 +59,7 @@ dnf info rsync openssh-server
 2. With the registered reposync container running:
 
    ```bash
-   ./scripts/05-fetch-epel-packages.sh
+   ./scripts/02-fetch-epel-packages.sh
    ```
 
    Builds:
@@ -70,7 +70,7 @@ dnf info rsync openssh-server
      repodata/
    ```
 
-3. Update USB offline partition (full step 4 or rsync `EPEL/`).
+3. Update USB offline partition (full step 07 (prepare-usb) or rsync `EPEL/`).
 4. On the installed system with offline repos enabled: `sudo dnf install htop nload …`
 
 > Full EPEL “Everything” is large. Prefer **targeted** downloads.
@@ -81,7 +81,7 @@ dnf info rsync openssh-server
 2. On the **connected build host**:
 
    ```bash
-   ./scripts/07-fetch-python-wheels.sh
+   ./scripts/03-fetch-python-wheels.sh
    ```
 
    This runs `pip download -r … -d out/offline-repo/python-wheels/` and pulls **dependencies as wheels**.
@@ -121,7 +121,7 @@ When you want newer errata on the stick:
 ./scripts/01-reposync.sh
 # dnf reposync -n is incremental-ish: re-downloads newer packages into out/offline-repo/
 ./scripts/status-reposync.sh
-sudo ./scripts/04-prepare-usb.sh /dev/sdb   # or rsync out/offline-repo/ onto the existing USB partition
+sudo ./scripts/07-prepare-usb.sh /dev/sdb   # or rsync out/offline-repo/ onto the existing USB partition
 ```
 
 You do **not** need to change package lists just to pick up newer NEVRAs of packages you already install by name.
@@ -132,9 +132,9 @@ You do **not** need to change package lists just to pick up newer NEVRAs of pack
 |------|--------|
 | 1 | Is it an **RPM** or a **PyPI** package? |
 | 2a | RPM in BaseOS/AppStream/CRB? → `required.txt` / `recommended.txt` |
-| 2b | RPM only in EPEL? → `epel-extra.txt` → `./scripts/05-fetch-epel-packages.sh` |
-| 2c | PyPI only? → `python-extra.txt` → `./scripts/07-fetch-python-wheels.sh` |
-| 3 | `./scripts/06-check-offline-deps.sh` for RPMs |
+| 2b | RPM only in EPEL? → `epel-extra.txt` → `./scripts/02-fetch-epel-packages.sh` |
+| 2c | PyPI only? → `python-extra.txt` → `./scripts/03-fetch-python-wheels.sh` |
+| 3 | `./scripts/04-check-offline-deps.sh` for RPMs |
 | 4 | Update USB offline partition |
 | 5 | Install offline (`dnf` and/or `python3.11 -m pip --no-index …`) |
 
@@ -145,13 +145,13 @@ You do **not** need to change package lists just to pick up newer NEVRAs of pack
 | Source | How deps are covered |
 |--------|----------------------|
 | BaseOS / AppStream / CRB | Full newest-only `reposync` mirrors the whole repo, so normal RPM dependencies for packages in those repos should resolve from the same media. |
-| EPEL (targeted) | `./scripts/05-fetch-epel-packages.sh` runs `dnf download --resolve --alldeps`, so listed EPEL packages **and** their dependencies are pulled into `out/offline-repo/EPEL/`. On the target, enable BaseOS+AppStream+CRB+EPEL together so dnf can take a dep from any of them. |
+| EPEL (targeted) | `./scripts/02-fetch-epel-packages.sh` runs `dnf download --resolve --alldeps`, so listed EPEL packages **and** their dependencies are pulled into `out/offline-repo/EPEL/`. On the target, enable BaseOS+AppStream+CRB+EPEL together so dnf can take a dep from any of them. |
 
 Caveats:
 
 - The package name must actually exist on the media. Verified gaps:
   - **`ntpdate`**: not in RHEL 8 — use **chrony** (removed from our lists).
-  - **`pipx`**: no RPM on RHEL 8 **or EPEL 8** — stage via **`packages/python-extra.txt`** + **`07-fetch-python-wheels.sh`**.
+  - **`pipx`**: no RPM on RHEL 8 **or EPEL 8** — stage via **`packages/python-extra.txt`** + **`03-fetch-python-wheels.sh`**.
 - Modular streams / weak deps can still surprise you.
 - **`Server with GUI`** pulls a large comps set — covered only because AppStream was fully mirrored.
 - Always enable **all** offline repos when installing (RHEL + EPEL).
@@ -161,9 +161,9 @@ Caveats:
 On the **build host**, with the `rhel8-reposync` container and trees under `out/offline-repo/`:
 
 ```bash
-./scripts/06-check-offline-deps.sh
+./scripts/04-check-offline-deps.sh
 # Optional heavy check:
-CHECK_GUI_GROUP=1 ./scripts/06-check-offline-deps.sh
+CHECK_GUI_GROUP=1 ./scripts/04-check-offline-deps.sh
 ```
 
 That points dnf at **only** `file:///repo/{BaseOS,AppStream,CodeReadyBuilder,EPEL}` (no CDN) and runs `dnf install --downloadonly` for the post-install package set. Exit 0 means the full dependency closure is available offline.
@@ -186,9 +186,11 @@ sudo dnf install --assumeno htop   # shows the transaction; look for "No match" 
 | `packages/epel-extra.txt` | EPEL RPMs → `out/offline-repo/EPEL` |
 | `packages/python-extra.txt` | PyPI names → wheels in `out/offline-repo/python-wheels` |
 | `packages/groups.txt` | Comps groups (mostly package-mode installs) |
-| `scripts/02-generate-kickstart.sh` | Builds `out/ks.cfg` from lists + template |
-| `scripts/05-fetch-epel-packages.sh` | Resolves/downloads EPEL RPMs + deps |
-| `scripts/06-check-offline-deps.sh` | Offline RPM dep dry-run |
-| `scripts/07-fetch-python-wheels.sh` | `pip download` wheels + deps for offline pip |
-| `scripts/post-install-extra.sh` | First-boot offline install helper on the target |
 | `scripts/01-reposync.sh` | Full BaseOS/AppStream/CRB mirror |
+| `scripts/02-fetch-epel-packages.sh` | EPEL RPMs + deps |
+| `scripts/03-fetch-python-wheels.sh` | PyPI wheels + deps |
+| `scripts/04-check-offline-deps.sh` | Offline RPM dep dry-run |
+| `scripts/05-generate-kickstart.sh` | Builds `out/ks.cfg` |
+| `scripts/06-inject-kickstart.sh` | Custom boot ISO |
+| `scripts/07-prepare-usb.sh` | Writes USB; copies **all** offline content + docs |
+| `scripts/post-install-extra.sh` | Runs on air-gapped host from the USB |

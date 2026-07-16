@@ -1,11 +1,11 @@
 # Packages that are NOT in RHEL BaseOS/AppStream/CRB and need EPEL 8.
-# Fetched with: ./scripts/05-fetch-epel-packages.sh
+# Fetched with: ./scripts/02-fetch-epel-packages.sh
 # Installed offline from out/offline-repo/EPEL when that tree is on the USB.
 #
 # Confirm names on a registered host:  dnf search <name>  (with epel enabled)
 #
 # Python packages that are not RPMs (e.g. pipx) go in packages/python-extra.txt
-# and are staged as wheels via ./scripts/07-fetch-python-wheels.sh
+# and are staged as wheels via ./scripts/03-fetch-python-wheels.sh
 
 # Admin / monitoring
 htop

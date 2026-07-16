@@ -28,7 +28,7 @@ if [[ ! -f "$SOURCE_ISO" ]]; then
   exit 1
 fi
 if [[ ! -f "$KS_IN" ]]; then
-  echo "Kickstart not found: $KS_IN — run ./scripts/02-generate-kickstart.sh first" >&2
+  echo "Kickstart not found: $KS_IN — run ./scripts/05-generate-kickstart.sh first" >&2
   exit 1
 fi
 command -v xorriso >/dev/null 2>&1 || { echo "xorriso required"; exit 1; }
@@ -148,4 +148,4 @@ echo
 echo "DONE: $OUT_ISO"
 echo "  Volume label: $VOL_ID"
 echo "  Kickstart:    /ks/ks.cfg (also written over osbuild.ks if present)"
-echo "Next: sudo ./scripts/04-prepare-usb.sh /dev/sdX"
+echo "Next: sudo ./scripts/07-prepare-usb.sh /dev/sdX"

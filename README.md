@@ -84,7 +84,7 @@ That is what `config.env` / the Dockerfile use after the last fixes. Full RHEL p
 Those are listed in `packages/epel-extra.txt` and pulled with a **targeted** download (not a full EPEL Everything mirror):
 
 ```bash
-./scripts/05-fetch-epel-packages.sh   # -> out/offline-repo/EPEL/ (~150 MB with deps for current list)
+./scripts/02-fetch-epel-packages.sh   # -> out/offline-repo/EPEL/ (~150 MB with deps for current list)
 ```
 
 Treat `out/offline-repo/EPEL/` as part of the USB offline tree (`LABEL=RHEL8OFFLINE`), same as BaseOS/AppStream/CRB.
@@ -107,27 +107,31 @@ chmod 600 config.env
 #   openssl passwd -6 'YourPassword'
 #   KS_ROOT_PASSWORD_HASH='$6$rounds=...'
 
-# 2. Sync offline RHEL repos (tens of GB; long-running)
+# --- All fetch steps before USB prepare ---
+# 01 RHEL repos (tens of GB)
 ./scripts/01-reposync.sh
-./scripts/status-reposync.sh          # progress / COMPLETE check
+./scripts/status-reposync.sh
 
-# 2b. Fetch required EPEL RPMs (htop, nload, pv, keepassxc, rdesktop, …)
-./scripts/05-fetch-epel-packages.sh   # packages/epel-extra.txt
+# 02 EPEL RPMs (htop, nload, pv, keepassxc, rdesktop, …)
+./scripts/02-fetch-epel-packages.sh
 
-# 2c. Stage Python wheels for offline pip (pipx + deps, …)
-./scripts/07-fetch-python-wheels.sh   # packages/python-extra.txt → python-wheels/
+# 03 Python wheels (pipx + deps, …)
+./scripts/03-fetch-python-wheels.sh
 
-# 3. Generate kickstart + inject into FIPS ISO
-./scripts/02-generate-kickstart.sh
-./scripts/03-inject-kickstart.sh      # -> out/rhel-8.10-airgap-ks.iso
+# 04 Optional offline dep check
+# ./scripts/04-check-offline-deps.sh
 
-# 4. Review then write USB (DESTRUCTIVE)
-./scripts/04-prepare-usb.sh --dry-run /dev/sdb
-sudo ./scripts/04-prepare-usb.sh /dev/sdb
+# 05–06 Kickstart + custom ISO
+./scripts/05-generate-kickstart.sh
+./scripts/06-inject-kickstart.sh      # -> out/rhel-8.10-airgap-ks.iso
+
+# 07 Write USB (DESTRUCTIVE) — copies RPMs, EPEL, wheels, and offline docs
+./scripts/07-prepare-usb.sh --dry-run /dev/sdb
+sudo ./scripts/07-prepare-usb.sh /dev/sdb
 # type YES when prompted
 ```
 
-### Useful step-4 flags
+### Useful prepare-usb flags
 
 | Flag | Meaning |
 |------|---------|
@@ -136,7 +140,7 @@ sudo ./scripts/04-prepare-usb.sh /dev/sdb
 | `--allow-incomplete-repo` | Write even if reposync still running / partial |
 | `--allow-stock-iso` | Use stock FIPS ISO if custom kickstart ISO is missing |
 
-See also `docs/STEP4-USB-REVIEW.md`.
+See also `docs/USB-PREPARE-REVIEW.md`.
 
 ## Package strategy (liveimg mode)
 
@@ -144,7 +148,7 @@ See also `docs/STEP4-USB-REVIEW.md`.
 2. **Kickstart `%post`** mounts `LABEL=RHEL8OFFLINE`, enables file:// repos (RHEL + required EPEL tree), runs `dnf upgrade` / installs your lists, and can `groupinstall "Server with GUI"`.
 3. **Offline RHEL tree** is a full newest-only (`dnf reposync -n`) mirror of BaseOS + AppStream + CRB — primary security-update channel on the stick.
 4. **Offline EPEL tree** is a **required** targeted RPM set (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …) via `packages/epel-extra.txt`.
-5. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/07-fetch-python-wheels.sh`.
+5. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/03-fetch-python-wheels.sh`.
 6. **`scripts/post-install-extra.sh`** installs RPMs from offline dnf repos, then installs wheels with `python3.11 -m pip --no-index --find-links=…`.
 
 Package name notes: `docs/PACKAGE-NOTES.md`.
@@ -154,8 +158,8 @@ Lists / config:
 | What | File / script |
 |------|----------------|
 | RHEL RPMs | `packages/required.txt`, `recommended.txt` |
-| EPEL RPMs | `packages/epel-extra.txt` → `./scripts/05-fetch-epel-packages.sh` |
-| PyPI / wheels | `packages/python-extra.txt` → `./scripts/07-fetch-python-wheels.sh` |
+| EPEL RPMs | `packages/epel-extra.txt` → `./scripts/02-fetch-epel-packages.sh` |
+| PyPI / wheels | `packages/python-extra.txt` → `./scripts/03-fetch-python-wheels.sh` |
 | Config | `PYTHON_EXTRA_FILE`, `PYTHON_WHEEL_DIR`, `PYTHON_PIP` in `config.env` |
 
 **Adding more packages later:** see **`docs/ADDING-PACKAGES.md`** (RPM vs EPEL vs wheel paths).
@@ -205,29 +209,31 @@ rhel-installer/
 ├── README.md
 ├── config.env.example          # copy to config.env (gitignored)
 ├── docs/
+│   ├── OFFLINE-INSTALL.md      # primary air-gap operator guide (copied to USB)
+│   ├── ADDING-PACKAGES.md
 │   ├── PACKAGE-NOTES.md
-│   └── STEP4-USB-REVIEW.md
+│   └── USB-PREPARE-REVIEW.md
 ├── packages/
 │   ├── required.txt
 │   ├── recommended.txt
-│   ├── epel-extra.txt          # required EPEL RPMs
-│   ├── python-extra.txt        # PyPI packages → offline wheels (pipx, …)
+│   ├── epel-extra.txt
+│   ├── python-extra.txt
 │   └── groups.txt
 ├── kickstart/
 │   └── ks.cfg.template
 ├── docker/
 │   └── Dockerfile.reposync
-├── scripts/
+├── scripts/                    # numbered so all fetch precedes prepare-usb
 │   ├── 01-reposync.sh
-│   ├── 02-generate-kickstart.sh
-│   ├── 03-inject-kickstart.sh
-│   ├── 04-prepare-usb.sh
-│   ├── 05-fetch-epel-packages.sh
-│   ├── 06-check-offline-deps.sh
-│   ├── 07-fetch-python-wheels.sh
+│   ├── 02-fetch-epel-packages.sh
+│   ├── 03-fetch-python-wheels.sh
+│   ├── 04-check-offline-deps.sh
+│   ├── 05-generate-kickstart.sh
+│   ├── 06-inject-kickstart.sh
+│   ├── 07-prepare-usb.sh
 │   ├── status-reposync.sh
-│   └── post-install-extra.sh
-└── out/                        # gitignored: offline-repo (incl. EPEL + python-wheels), ISO, logs
+│   └── post-install-extra.sh   # runs on the air-gapped host
+└── out/                        # offline-repo (BaseOS/AppStream/CRB/EPEL/python-wheels), ISO, logs
 ```
 
 ## Security

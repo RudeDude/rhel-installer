@@ -9,7 +9,7 @@
 | jq | `jq` |
 | python 3 + pip | `python3`, `python3-pip`, `python3-setuptools` |
 | python 3.11 (for pipx) | `python3.11`, `python3.11-pip`, `python3.11-setuptools` |
-| pipx | **No RPM** — staged as **wheels** via `packages/python-extra.txt` + `./scripts/07-fetch-python-wheels.sh` |
+| pipx | **No RPM** — staged as **wheels** via `packages/python-extra.txt` + `./scripts/03-fetch-python-wheels.sh` |
 | tcpdump | `tcpdump` |
 | java 8 | `java-1.8.0-openjdk` (+ `-devel` / `-headless` as needed) |
 | java 11 | `java-11-openjdk` (+ `-devel` / `-headless`) |
@@ -62,7 +62,7 @@ Targeted fetch (recommended):
 
 ```bash
 # edit packages/epel-extra.txt then:
-./scripts/05-fetch-epel-packages.sh
+./scripts/02-fetch-epel-packages.sh
 ```
 
 That builds `out/offline-repo/EPEL/` with resolved dependencies (much smaller than mirroring all of EPEL).

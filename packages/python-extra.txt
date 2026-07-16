@@ -1,5 +1,5 @@
 # Python packages to stage as wheels (+ dependencies) for offline pip install.
-# Fetched with: ./scripts/07-fetch-python-wheels.sh
+# Fetched with: ./scripts/03-fetch-python-wheels.sh
 # Installed on target from: $OFFLINE_MEDIA/python-wheels via pip --no-index --find-links
 #
 # One requirement per line (pip requirement syntax is OK):

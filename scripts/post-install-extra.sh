@@ -81,7 +81,7 @@ echo "==> EPEL extras (htop, nload, pv, keepassxc, rdesktop)"
 if [[ -d "$MNT/EPEL/repodata" || -d "$MNT/EPEL/Packages" ]]; then
   dnf -y install htop nload pv keepassxc rdesktop
 else
-  echo "ERROR: EPEL offline tree missing on media. On build host: ./scripts/05-fetch-epel-packages.sh" >&2
+  echo "ERROR: EPEL offline tree missing on media. On build host: ./scripts/02-fetch-epel-packages.sh" >&2
   exit 1
 fi
 
@@ -102,7 +102,7 @@ if [[ -d "$WHEEL_DIR" ]] && compgen -G "$WHEEL_DIR/*.whl" >/dev/null; then
   fi
 else
   echo "ERROR: Python wheels not found at $WHEEL_DIR" >&2
-  echo "On build host: ./scripts/07-fetch-python-wheels.sh" >&2
+  echo "On build host: ./scripts/03-fetch-python-wheels.sh" >&2
   exit 1
 fi
 

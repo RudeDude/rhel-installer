@@ -150,5 +150,5 @@ exit $rc
 
 echo
 echo "Exit code from container check: $?"
-echo "Note: post-install-extra.sh currently uses '|| true' so install failures are masked on the target."
+echo "Note: post-install-extra.sh fails loudly if offline trees are incomplete."
 echo "      Prefer fixing missing deps here rather than relying on that."

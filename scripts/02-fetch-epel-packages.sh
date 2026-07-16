@@ -71,8 +71,7 @@ docker exec -u 0 "$CONTAINER_NAME" bash -lc "
 
 echo
 echo "Done. Offline EPEL content: $EPEL_DIR"
-echo "Next:"
-echo "  - Re-generate kickstart if you changed package lists: ./scripts/02-generate-kickstart.sh"
-echo "  - Copy to USB on next write: sudo ./scripts/04-prepare-usb.sh /dev/sdb"
-echo "  - On installed host, enable offline EPEL (kickstart %post / enable-offline-repos can be extended),"
-echo "    or: dnf install with baseurl=file:///mnt/rhel8offline/EPEL"
+echo "Next: ./scripts/03-fetch-python-wheels.sh"
+echo "Then:  ./scripts/04-check-offline-deps.sh   # optional"
+echo "Then:  ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
+echo "Then:  sudo ./scripts/07-prepare-usb.sh /dev/sdb"

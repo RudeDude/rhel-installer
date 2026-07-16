@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# Step 4: Write bootable installer + offline package partition to a USB disk.
+# Step 07 (final): Write bootable installer + offline package partition to a USB disk.
+#
+# Run AFTER all fetch steps:
+#   01-reposync, 02-fetch-epel, 03-fetch-python-wheels, (04-check),
+#   05-generate-kickstart, 06-inject-kickstart
 #
 # Layout after success:
 #   [0 .. ISO image]  isohybrid RHEL installer (dd of custom kickstart ISO)
-#   [after ISO .. end] ext4 partition LABEL=RHEL8OFFLINE with BaseOS/ AppStream/ ...
+#   [after ISO .. end] ext4 LABEL=RHEL8OFFLINE:
+#       BaseOS/ AppStream/ CodeReadyBuilder/ EPEL/ python-wheels/
+#       packages/ docs/ scripts/ ks/ README-ON-MEDIA.txt
 #
 # Usage:
-#   ./scripts/04-prepare-usb.sh --dry-run [/dev/sdb]   # review only (no root required)
-#   sudo ./scripts/04-prepare-usb.sh /dev/sdb          # DESTRUCTIVE write
-#   sudo ./scripts/04-prepare-usb.sh --yes /dev/sdb    # skip YES prompt (still destructive)
+#   ./scripts/07-prepare-usb.sh --dry-run [/dev/sdb]
+#   sudo ./scripts/07-prepare-usb.sh /dev/sdb
+#   sudo ./scripts/07-prepare-usb.sh --yes /dev/sdb
 #
 # Defaults DEVICE from config.env USB_DEVICE if set.
 set -euo pipefail
@@ -94,14 +100,14 @@ pick_iso() {
       ISO="$SOURCE_ISO_PATH"
       echo "ISO: STOCK source (kickstart NOT injected yet)"
       echo "     $ISO"
-      echo "     Build custom ISO with: ./scripts/02-generate-kickstart.sh && ./scripts/03-inject-kickstart.sh"
+      echo "     Build custom ISO with: ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
       return 0
     fi
   fi
   echo "ERROR: Custom ISO not found: $CUSTOM_ISO" >&2
   echo "  1) Set password hashes in config.env" >&2
-  echo "  2) ./scripts/02-generate-kickstart.sh" >&2
-  echo "  3) ./scripts/03-inject-kickstart.sh" >&2
+  echo "  2) ./scripts/05-generate-kickstart.sh" >&2
+  echo "  3) ./scripts/06-inject-kickstart.sh" >&2
   echo "  Or re-run with --allow-stock-iso to write the unpatched FIPS ISO (not recommended for final media)." >&2
   return 1
 }
@@ -175,7 +181,7 @@ preflight() {
     rc=1
   else
     du -sh "$REPO_DIR" 2>/dev/null || true
-    for d in BaseOS AppStream CodeReadyBuilder; do
+    for d in BaseOS AppStream CodeReadyBuilder EPEL; do
       if [[ -d "$REPO_DIR/$d" ]]; then
         local n
         n="$(find "$REPO_DIR/$d" -name '*.rpm' 2>/dev/null | wc -l)"
@@ -184,12 +190,28 @@ preflight() {
         printf '  %-18s MISSING\n' "$d"
       fi
     done
+    if [[ -d "$REPO_DIR/python-wheels" ]]; then
+      local nw
+      nw="$(find "$REPO_DIR/python-wheels" -name '*.whl' 2>/dev/null | wc -l)"
+      printf '  %-18s %s  wheels=%s\n' "python-wheels" "$(du -sh "$REPO_DIR/python-wheels" 2>/dev/null | awk '{print $1}')" "$nw"
+    else
+      printf '  %-18s MISSING (run ./scripts/03-fetch-python-wheels.sh)\n' "python-wheels"
+      if [[ "$ALLOW_INCOMPLETE_REPO" -eq 0 ]]; then
+        rc=1
+      fi
+    fi
     local total_rpms
     total_rpms="$(find "$REPO_DIR" -name '*.rpm' 2>/dev/null | wc -l)"
     echo "  total rpms: $total_rpms"
     if [[ ! -d "$REPO_DIR/BaseOS" || ! -d "$REPO_DIR/AppStream" ]]; then
       echo "ERROR: BaseOS and AppStream directories are required under $REPO_DIR" >&2
       rc=1
+    fi
+    if [[ ! -d "$REPO_DIR/EPEL/repodata" && ! -d "$REPO_DIR/EPEL/Packages" ]]; then
+      echo "ERROR: EPEL tree missing — run ./scripts/02-fetch-epel-packages.sh" >&2
+      if [[ "$ALLOW_INCOMPLETE_REPO" -eq 0 ]]; then
+        rc=1
+      fi
     fi
     local sync_running=0
     if docker top rhel8-reposync 2>/dev/null | grep -q 'dnf reposync'; then
@@ -218,9 +240,14 @@ preflight() {
   fi
 
   echo
-  echo "Helpers that will be copied onto the data partition:"
-  [[ -f "$ROOT/out/ks.cfg" ]] && echo "  ks: $ROOT/out/ks.cfg" || echo "  ks: (missing out/ks.cfg — run step 2)"
-  [[ -f "$ROOT/scripts/post-install-extra.sh" ]] && echo "  scripts/post-install-extra.sh" || echo "  post-install-extra.sh missing"
+  echo "Content that will be copied onto the data partition:"
+  echo "  - Full offline-repo tree (BaseOS, AppStream, CRB, EPEL, python-wheels)"
+  echo "  - packages/*.txt (package lists)"
+  echo "  - docs/ (OFFLINE-INSTALL.md, ADDING-PACKAGES.md, PACKAGE-NOTES.md, …)"
+  echo "  - scripts/post-install-extra.sh"
+  echo "  - project README.md"
+  [[ -f "$ROOT/out/ks.cfg" ]] && echo "  - ks/ks.cfg" || echo "  - ks: (missing out/ks.cfg — run ./scripts/05-generate-kickstart.sh)"
+  [[ -f "$ROOT/scripts/post-install-extra.sh" ]] && echo "  - scripts/post-install-extra.sh OK" || echo "  - post-install-extra.sh MISSING"
 
   echo
   echo "Required tools:"
@@ -255,13 +282,15 @@ plan() {
    - Writes isohybrid installer to the start of the disk
 3. Create a Linux partition in free space starting at ~${start_mib} MiB to end of disk
 4. mkfs.ext4 -L $USB_REPO_LABEL <new-partition>
-5. rsync -aH $REPO_DIR/ -> mounted data partition
-6. Copy ks.cfg + post-install-extra.sh helpers
-7. sync + unmount
+5. rsync -aH $REPO_DIR/  (BaseOS, AppStream, CRB, EPEL, python-wheels, …)
+6. Overlay offline reference material:
+     packages/  docs/  scripts/post-install-extra.sh  README.md  ks/ks.cfg
+7. Write README-ON-MEDIA.txt pointing at docs/OFFLINE-INSTALL.md
+8. sync + unmount
 
 RESULT:
-  - Bootable FIPS/STIG (or custom) installer at the beginning of $DEVICE
-  - Offline repos on ext4 LABEL=$USB_REPO_LABEL for kickstart %post / dnf later
+  - Bootable installer at the beginning of $DEVICE
+  - Offline RPMs + EPEL + Python wheels + install docs on LABEL=$USB_REPO_LABEL
 
 DESTRUCTIVE: existing partitions on $DEVICE will be destroyed
   (currently has whatever lsblk showed in preflight).
@@ -411,10 +440,38 @@ do_write() {
   if [[ -d "$REPO_DIR" ]]; then
     rsync -aH --info=progress2 "$REPO_DIR"/ "$MNT"/
   else
-    echo "WARN: REPO_DIR missing during copy" >&2
+    echo "ERROR: REPO_DIR missing during copy" >&2
+    umount "$MNT" || true
+    rmdir "$MNT" || true
+    exit 1
   fi
 
-  mkdir -p "$MNT/ks" "$MNT/scripts"
+  # Explicitly ensure critical offline content is present (in case REPO_DIR was incomplete)
+  echo "==> Ensuring EPEL RPMs, Python wheels, docs, and install helpers are on media"
+  if [[ -d "$REPO_DIR/EPEL" ]]; then
+    rsync -aH "$REPO_DIR/EPEL"/ "$MNT/EPEL"/
+  fi
+  if [[ -d "$REPO_DIR/python-wheels" ]]; then
+    rsync -aH "$REPO_DIR/python-wheels"/ "$MNT/python-wheels"/
+  elif [[ -d "$ROOT/out/offline-repo/python-wheels" ]]; then
+    rsync -aH "$ROOT/out/offline-repo/python-wheels"/ "$MNT/python-wheels"/
+  fi
+
+  # Package lists + offline documentation for air-gapped operators
+  mkdir -p "$MNT/packages" "$MNT/docs" "$MNT/ks" "$MNT/scripts"
+  if [[ -d "$ROOT/packages" ]]; then
+    rsync -aH --include='*.txt' --exclude='*' "$ROOT/packages"/ "$MNT/packages"/ 2>/dev/null || \
+      cp -a "$ROOT/packages"/*.txt "$MNT/packages/" 2>/dev/null || true
+  fi
+  if [[ -d "$ROOT/docs" ]]; then
+    rsync -aH "$ROOT/docs"/ "$MNT/docs"/
+  fi
+  [[ -f "$ROOT/README.md" ]] && cp -a "$ROOT/README.md" "$MNT/docs/PROJECT-README.md"
+  # Primary entry point for operators on the stick
+  if [[ -f "$ROOT/docs/OFFLINE-INSTALL.md" ]]; then
+    cp -a "$ROOT/docs/OFFLINE-INSTALL.md" "$MNT/OFFLINE-INSTALL.md"
+  fi
+
   if [[ -f "$ROOT/out/ks.cfg" ]]; then
     cp -a "$ROOT/out/ks.cfg" "$MNT/ks/ks.cfg"
   else
@@ -422,6 +479,22 @@ do_write() {
   fi
   if [[ -f "$ROOT/scripts/post-install-extra.sh" ]]; then
     cp -a "$ROOT/scripts/post-install-extra.sh" "$MNT/scripts/"
+    chmod 755 "$MNT/scripts/post-install-extra.sh"
+  fi
+
+  # Verify critical paths landed on the stick
+  local missing=0
+  for need in BaseOS AppStream EPEL python-wheels docs/OFFLINE-INSTALL.md scripts/post-install-extra.sh; do
+    if [[ ! -e "$MNT/$need" ]]; then
+      echo "WARN: missing on media after copy: $need" >&2
+      missing=1
+    fi
+  done
+  if [[ "$missing" -ne 0 && "$ALLOW_INCOMPLETE_REPO" -eq 0 ]]; then
+    echo "ERROR: USB data partition incomplete. Fix fetch steps and re-run." >&2
+    umount "$MNT" || true
+    rmdir "$MNT" || true
+    exit 1
   fi
 
   cat > "$MNT/README-ON-MEDIA.txt" <<EOF
@@ -430,18 +503,24 @@ Created: $(date -Is)
 Installer ISO written to start of this USB: $(basename "$ISO")
 Repo filesystem label: $USB_REPO_LABEL
 
-Layout:
-  BaseOS/
-  AppStream/
-  CodeReadyBuilder/   (if synced)
-  ks/ks.cfg
-  scripts/post-install-extra.sh
+START HERE (offline instructions):
+  docs/OFFLINE-INSTALL.md
+  (also copied as OFFLINE-INSTALL.md in this partition root)
 
-On installed system:
-  sudo enable-offline-repos.sh   # if kickstart %post installed helpers
-  # or:
+Layout:
+  BaseOS/  AppStream/  CodeReadyBuilder/
+  EPEL/                 # htop, nload, pv, keepassxc, rdesktop, …
+  python-wheels/        # pipx + deps (offline pip)
+  packages/             # required.txt, epel-extra.txt, python-extra.txt, …
+  docs/                 # OFFLINE-INSTALL, ADDING-PACKAGES, PACKAGE-NOTES, …
+  scripts/post-install-extra.sh
+  ks/ks.cfg
+
+Quick start on installed system:
   sudo mkdir -p /mnt/rhel8offline
   sudo mount -L $USB_REPO_LABEL /mnt/rhel8offline
+  sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
+  # or: sudo enable-offline-repos.sh   # if kickstart %post installed helpers
 EOF
 
   sync
@@ -460,7 +539,7 @@ EOF
 }
 
 # --- main ---
-echo "RHEL air-gap USB preparer (step 4)"
+echo "RHEL air-gap USB preparer (step 07 — final)"
 echo "Project: $ROOT"
 echo
 
@@ -482,7 +561,7 @@ plan
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo
   echo "DRY-RUN complete — no changes written."
-  echo "When ready (after reposync + custom ISO build):"
+  echo "When ready (after 01–06 fetch/kickstart steps + custom ISO):"
   echo "  sudo $0 ${DEVICE}"
   echo "Optional flags: --yes  --allow-incomplete-repo  --allow-stock-iso"
   exit 0

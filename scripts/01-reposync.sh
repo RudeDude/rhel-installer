@@ -206,4 +206,4 @@ du -sh "$REPO_DIR"/* 2>/dev/null || du -sh "$REPO_DIR"
 
 echo
 echo "DONE. Offline repo at: $REPO_DIR"
-echo "Next: ./scripts/02-generate-kickstart.sh"
+echo "Next: ./scripts/02-fetch-epel-packages.sh then 03-fetch-python-wheels.sh"
