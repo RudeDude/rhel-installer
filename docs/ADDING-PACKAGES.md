@@ -112,6 +112,45 @@ You do **not** need to change package lists just to pick up newer NEVRAs of pack
 | 4 | Update USB offline partition (full step 4 or targeted rsync) |
 | 5 | Install offline on the target (`dnf install …`) |
 
+## Will offline `dnf install` get all dependencies?
+
+**Usually yes**, if the package exists in your offline trees and those trees are complete for that channel:
+
+| Source | How deps are covered |
+|--------|----------------------|
+| BaseOS / AppStream / CRB | Full newest-only `reposync` mirrors the whole repo, so normal RPM dependencies for packages in those repos should resolve from the same media. |
+| EPEL (targeted) | `./scripts/05-fetch-epel-packages.sh` runs `dnf download --resolve --alldeps`, so listed EPEL packages **and** their dependencies are pulled into `out/offline-repo/EPEL/`. On the target, enable BaseOS+AppStream+CRB+EPEL together so dnf can take a dep from any of them. |
+
+Caveats:
+
+- The package name must actually exist on the media. Verified gaps:
+  - **`ntpdate`**: not in RHEL 8 — use **chrony**.
+  - **`pipx`**: no RPM on RHEL 8 **or EPEL 8** — install with **`python3 -m pip install --user pipx`** (online once, or ship wheels on the USB for offline pip).
+- Modular streams / weak deps can still surprise you.
+- **`Server with GUI`** pulls a large comps set — covered only because AppStream was fully mirrored.
+- Always enable **all** offline repos when installing (RHEL + EPEL).
+
+### How to verify with DNF (recommended)
+
+On the **build host**, with the `rhel8-reposync` container and trees under `out/offline-repo/`:
+
+```bash
+./scripts/06-check-offline-deps.sh
+# Optional heavy check:
+CHECK_GUI_GROUP=1 ./scripts/06-check-offline-deps.sh
+```
+
+That points dnf at **only** `file:///repo/{BaseOS,AppStream,CodeReadyBuilder,EPEL}` (no CDN) and runs `dnf install --downloadonly` for the post-install package set. Exit 0 means the full dependency closure is available offline.
+
+On an **installed air-gapped system** (USB mounted):
+
+```bash
+sudo enable-offline-repos.sh
+sudo dnf install --downloadonly -y htop nload wireshark gitk java-17-openjdk-devel …
+# or:
+sudo dnf install --assumeno htop   # shows the transaction; look for "No match" / "nothing provides"
+```
+
 ## Files involved
 
 | File | Role |
@@ -122,5 +161,6 @@ You do **not** need to change package lists just to pick up newer NEVRAs of pack
 | `packages/groups.txt` | Comps groups (mostly package-mode installs) |
 | `scripts/02-generate-kickstart.sh` | Builds `out/ks.cfg` from lists + template |
 | `scripts/05-fetch-epel-packages.sh` | Resolves/downloads EPEL extras |
+| `scripts/06-check-offline-deps.sh` | Offline dep dry-run (`dnf install --downloadonly`) |
 | `scripts/post-install-extra.sh` | First-boot offline install helper on the target |
 | `scripts/01-reposync.sh` | Full BaseOS/AppStream/CRB mirror |

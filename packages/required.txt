@@ -3,8 +3,7 @@
 
 # --- Time / clocks ---
 chrony
-# ntpdate is legacy; still useful for one-shot set. Prefer chrony long-term.
-ntpdate
+# ntpdate: NOT in RHEL 8 BaseOS/AppStream (removed with classic ntp). Use chrony (chronyc).
 
 # --- Editors / terminal UX ---
 nano
@@ -53,8 +52,9 @@ python3
 python3-pip
 python3-setuptools
 python3-devel
-# pipx is available in RHEL 8 AppStream on current 8.10 streams
-pipx
+# pipx: no RPM on RHEL 8 AppStream or EPEL 8. After install use:
+#   python3 -m pip install --user pipx
+# (optionally pre-stage wheels on the USB for air-gapped pip)
 
 # --- Java (OpenJDK 8 / 11 / 17) ---
 # Debian-style openjdk-17-jdk → java-17-openjdk-devel on RHEL

@@ -29,6 +29,8 @@
 | rdesktop | Classic client is **EPEL** `rdesktop`; RHEL AppStream has **`freerdp`** (`xfreerdp`) |
 | keepassx | Abandoned upstream; use **EPEL `keepassxc`** (KeepassXC) |
 | pv | **`pv` — EPEL 8 only** (pipe viewer) |
+| pipx | **No RPM** on RHEL 8 AppStream **or** EPEL 8 (verified). Use `python3 -m pip install --user pipx` (needs PyPI or pre-staged wheels). |
+| ntpdate | **Not in RHEL 8** — use `chrony` / `chronyc` |
 
 See `docs/ADDING-PACKAGES.md` for how to add more packages and re-sync.
 

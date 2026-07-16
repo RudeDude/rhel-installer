@@ -15,3 +15,8 @@ keepassxc
 
 # Classic RDP client (optional; freerdp/xfreerdp is already in required.txt from AppStream)
 rdesktop
+
+# NOT available as RPM on RHEL 8 / EPEL 8 (verified): pipx
+# Install offline after python3-pip is present, e.g.:
+#   python3 -m pip install --user pipx
+#   (ship wheels on USB if you need fully offline pip installs)
