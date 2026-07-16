@@ -28,7 +28,7 @@ Do **not** rebuild one giant multi‑GB package ISO when errata change. Use a **
 | Region | Size | Purpose |
 |--------|------|---------|
 | Start of disk | ~3–4 GB | Customized FIPS/STIG isohybrid installer (kickstart injected) |
-| Rest of disk `LABEL=RHEL8OFFLINE` | remainder | Offline RPM trees (BaseOS + AppStream + CRB) |
+| Rest of disk `LABEL=RHEL8OFFLINE` | remainder | Offline RPM trees (BaseOS + AppStream + CRB + **EPEL**) |
 
 ```
 USB
@@ -37,6 +37,7 @@ USB
     ├── BaseOS/
     ├── AppStream/
     ├── CodeReadyBuilder/
+    ├── EPEL/                   # required: htop, nload, pv, keepassxc, rdesktop, …
     ├── ks/ks.cfg
     └── scripts/post-install-extra.sh
 ```
@@ -66,11 +67,26 @@ REPOSYNC_IMAGE="registry.access.redhat.com/ubi8/ubi:8.10"
 
 That is what `config.env` / the Dockerfile use after the last fixes. Full RHEL package CDN access still requires registering the container with `subscription-manager` (activation key works with SCA orgs).
 
-You do **not** need EPEL for this project. Sync is only:
+### Offline content sources (RHEL **and** EPEL)
+
+**RHEL 8 CDN** (full newest-only mirror via `./scripts/01-reposync.sh`):
 
 - `rhel-8-for-x86_64-baseos-rpms`
 - `rhel-8-for-x86_64-appstream-rpms`
 - `codeready-builder-for-rhel-8-x86_64-rpms`
+
+**EPEL 8** is **required** for this project’s baseline tools that Red Hat does not ship in those repos, including at least:
+
+- `htop`, `nload`, `pv`
+- `keepassxc` (KeepassX successor), `rdesktop`
+
+Those are listed in `packages/epel-extra.txt` and pulled with a **targeted** download (not a full EPEL Everything mirror):
+
+```bash
+./scripts/05-fetch-epel-packages.sh   # -> out/offline-repo/EPEL/ (~150 MB with deps for current list)
+```
+
+Treat `out/offline-repo/EPEL/` as part of the USB offline tree (`LABEL=RHEL8OFFLINE`), same as BaseOS/AppStream/CRB.
 
 ## Quick workflow
 
@@ -90,9 +106,12 @@ chmod 600 config.env
 #   openssl passwd -6 'YourPassword'
 #   KS_ROOT_PASSWORD_HASH='$6$rounds=...'
 
-# 2. Sync offline repos (tens of GB; long-running)
+# 2. Sync offline RHEL repos (tens of GB; long-running)
 ./scripts/01-reposync.sh
 ./scripts/status-reposync.sh          # progress / COMPLETE check
+
+# 2b. Fetch required EPEL packages (htop, nload, pv, keepassxc, rdesktop, …)
+./scripts/05-fetch-epel-packages.sh   # uses packages/epel-extra.txt
 
 # 3. Generate kickstart + inject into FIPS ISO
 ./scripts/02-generate-kickstart.sh
@@ -118,20 +137,22 @@ See also `docs/STEP4-USB-REVIEW.md`.
 ## Package strategy (liveimg mode)
 
 1. **Installer** delivers the Image Builder rootfs (`liveimg`), not a classic `%packages` DVD install.
-2. **Kickstart `%post`** mounts `LABEL=RHEL8OFFLINE`, enables file:// repos, runs `dnf upgrade` / installs your lists, and can `groupinstall "Server with GUI"`.
-3. **Offline tree** is a full newest-only (`dnf reposync -n`) mirror of BaseOS + AppStream + CRB — that is your security-update channel on the stick.
-4. **`scripts/post-install-extra.sh`** can finish package work after first boot if `%post` could not see the USB.
+2. **Kickstart `%post`** mounts `LABEL=RHEL8OFFLINE`, enables file:// repos (RHEL + required EPEL tree), runs `dnf upgrade` / installs your lists, and can `groupinstall "Server with GUI"`.
+3. **Offline RHEL tree** is a full newest-only (`dnf reposync -n`) mirror of BaseOS + AppStream + CRB — primary security-update channel on the stick.
+4. **Offline EPEL tree** is a **required** targeted set for tools Red Hat does not ship (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …). Keep `packages/epel-extra.txt` in sync with what you expect on every install.
+5. **`scripts/post-install-extra.sh`** can finish package work after first boot if `%post` could not see the USB.
 
 Package name notes: `docs/PACKAGE-NOTES.md`.
 
 Lists:
 
-- `packages/required.txt` — core extras (Java, python/pip/pipx, rsync, openssh-server, editors, etc.)
-- `packages/recommended.txt` — admin tools, desktop extras, git (current selection)
-- `packages/epel-extra.txt` — EPEL-only tools (`htop`, `nload`, …) → `./scripts/05-fetch-epel-packages.sh`
+- `packages/required.txt` — RHEL-repo packages (Java 8/11/17, wireshark, git/gitk/git-lfs, freerdp, rsync, openssh-server, …)
+- `packages/recommended.txt` — optional RHEL extras (desktop niceties, admin tools)
+- `packages/epel-extra.txt` — **required EPEL set** (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …) → `./scripts/05-fetch-epel-packages.sh`
 - `packages/groups.txt` — comps / environment groups for package-mode installs
 
-**Adding more packages later:** see **`docs/ADDING-PACKAGES.md`** (list files, when you need a re-sync vs EPEL fetch, USB update steps).
+**Adding more packages later:** see **`docs/ADDING-PACKAGES.md`**.  
+If the new tool is missing from BaseOS/AppStream/CRB, add it to `epel-extra.txt` and re-run step 2b — do not assume “RHEL-only media is enough.”
 
 ## Measured space (x86_64, newest-only reposync)
 
@@ -141,7 +162,8 @@ Lists:
 | BaseOS | ~2.2 GB |
 | AppStream | ~17 GB |
 | CodeReady Builder | ~13 GB |
-| **Offline tree total** | **~31 GB** |
+| EPEL (targeted required set) | ~0.15 GB |
+| **Offline tree total** | **~31 GB** (+ EPEL) |
 | USB capacity | ~230 GB usable |
 
 Earlier “AppStream 35–55 GB” estimates assumed older/fuller mirrors; with `-n` (newest NEVRA only) ~31 GB total is realistic.
@@ -181,7 +203,7 @@ rhel-installer/
 ├── packages/
 │   ├── required.txt
 │   ├── recommended.txt
-│   ├── epel-extra.txt          # htop, nload, …
+│   ├── epel-extra.txt          # required EPEL: htop, nload, pv, keepassxc, …
 │   └── groups.txt
 ├── kickstart/
 │   └── ks.cfg.template
