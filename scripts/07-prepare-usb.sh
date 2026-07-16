@@ -387,32 +387,96 @@ do_write() {
 
   local iso_bytes start_mib
   iso_bytes="$(stat -c%s "$ISO")"
+  # First MiB *after* the ISO image (+ small gap). Fallback if free-space auto-detect fails.
   start_mib=$(( (iso_bytes / 1048576) + 2 ))
-  echo "==> Creating offline-repo partition starting at ${start_mib}MiB"
+  echo "==> Creating offline-repo partition in free space after the hybrid ISO (~${start_mib} MiB+)"
 
-  # Hybrid ISO already has a partition table. Create one more partition in free space.
-  if command -v sgdisk >/dev/null 2>&1; then
-    sgdisk -p "$DEVICE" || true
-    # Delete any partition that might already occupy free space from a previous attempt? leave ISO parts.
-    # Auto number, start MiB, end of disk
-    if ! sgdisk -n "0:${start_mib}M:0" -t "0:8300" -c "0:${USB_REPO_LABEL}" "$DEVICE"; then
-      echo "sgdisk failed; trying parted" >&2
-      parted -s "$DEVICE" unit MiB mkpart "${USB_REPO_LABEL}" ext4 "${start_mib}" 100%
+  # RHEL/Fedora isohybrid ISOs embed a GPT that only spans the *image* size (~3GB).
+  # After dd onto a larger USB, the backup GPT sits mid-disk and tools report
+  # "Invalid partition data!". Relocate it to the real end of the disk first.
+  create_data_partition() {
+    if command -v sgdisk >/dev/null 2>&1; then
+      echo "    Fixing hybrid GPT to cover the full disk (sgdisk -e)..."
+      if ! sgdisk -e "$DEVICE" 2>&1; then
+        echo "    WARN: sgdisk -e reported an error (continuing)" >&2
+      fi
+      # Clear any bogus secondary structures then re-expand if needed
+      partprobe "$DEVICE" 2>/dev/null || true
+      sleep 1
+
+      echo "    Partition table after GPT fix:"
+      sgdisk -p "$DEVICE" 2>&1 || true
+
+      local first_free
+      first_free="$(sgdisk -F "$DEVICE" 2>/dev/null | tail -n1 | tr -dc '0-9' || true)"
+      echo "    First free sector: ${first_free:-unknown}"
+
+      # Prefer start at first free sector; fill to end of disk (0 = end)
+      if [[ -n "${first_free}" && "${first_free}" -gt 2048 ]]; then
+        if sgdisk -n "0:${first_free}:0" -t "0:8300" -c "0:${USB_REPO_LABEL}" "$DEVICE" 2>&1; then
+          echo "    Created data partition (sgdisk, start sector ${first_free})"
+          return 0
+        fi
+      fi
+      # Largest free block
+      if sgdisk -n "0:0:0" -t "0:8300" -c "0:${USB_REPO_LABEL}" "$DEVICE" 2>&1; then
+        echo "    Created data partition (sgdisk, largest free block)"
+        return 0
+      fi
+      # Explicit MiB start after ISO
+      if sgdisk -n "0:${start_mib}M:0" -t "0:8300" -c "0:${USB_REPO_LABEL}" "$DEVICE" 2>&1; then
+        echo "    Created data partition (sgdisk, ${start_mib}MiB)"
+        return 0
+      fi
+      echo "    sgdisk could not create data partition" >&2
     fi
-  else
-    parted -s "$DEVICE" unit MiB mkpart "${USB_REPO_LABEL}" ext4 "${start_mib}" 100%
+
+    echo "    Falling back to parted..." >&2
+    local pttype
+    pttype="$(blkid -p -s PTTYPE -o value "$DEVICE" 2>/dev/null || true)"
+    if [[ -z "$pttype" ]]; then
+      pttype="$(parted -s "$DEVICE" print 2>/dev/null | awk '/Partition Table:/ {print $3}' || true)"
+    fi
+    echo "    Partition table type: ${pttype:-unknown}"
+
+    # parted GPT: mkpart <name> <fs-type> <start> <end>
+    # parted MBR: mkpart primary|logical|extended <fs-type> <start> <end>
+    # Using "RHEL8OFFLINE" as first arg on MBR fails with "Expecting a partition type".
+    if [[ "$pttype" == "gpt" ]]; then
+      parted -s "$DEVICE" unit MiB mkpart "${USB_REPO_LABEL}" ext4 "${start_mib}MiB" 100% && return 0
+      parted -s "$DEVICE" mkpart "${USB_REPO_LABEL}" ext4 "${start_mib}MiB" 100% && return 0
+    fi
+    # MBR / hybrid fallback — part-type must be primary
+    parted -s "$DEVICE" unit MiB mkpart primary ext4 "${start_mib}MiB" 100% && return 0
+    parted -s "$DEVICE" mkpart primary ext4 "${start_mib}MiB" 100% && return 0
+    return 1
+  }
+
+  if ! create_data_partition; then
+    echo "ERROR: Could not create offline-repo partition on $DEVICE" >&2
+    echo "Manual recovery after the ISO dd:" >&2
+    echo "  sudo sgdisk -e $DEVICE" >&2
+    echo "  sudo sgdisk -n 0:0:0 -t 0:8300 -c 0:${USB_REPO_LABEL} $DEVICE" >&2
+    echo "  sudo partprobe $DEVICE" >&2
+    echo "  sudo mkfs.ext4 -L ${USB_REPO_LABEL} \$(lsblk -ln -o NAME,SIZE $DEVICE | sort -k2 -h | tail -1 | awk '{print \"/dev/\"\$1}')" >&2
+    exit 1
   fi
 
   partprobe "$DEVICE" || true
   sleep 2
   udevadm settle 2>/dev/null || true
+  echo "    Layout after partition create:"
   lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT,START "$DEVICE" || true
+  sgdisk -p "$DEVICE" 2>/dev/null || true
 
-  local DATA_PART
-  DATA_PART="$(resolve_data_part || true)"
-  # Prefer largest non-vfat partition if heuristic failed
-  if [[ -z "${DATA_PART:-}" || ! -b "${DATA_PART:-/dev/null}" ]]; then
-    DATA_PART="$(lsblk -ln -b -o NAME,SIZE,FSTYPE "$DEVICE" | awk 'NR>0 && $1 !~ /^'"$(basename "$DEVICE")"'$/ {print $1,$2}' | sort -k2 -n | tail -1 | awk '{print "/dev/"$1}')"
+  # Prefer the *largest* partition on the stick (repo data), never the ~3GB ISO or 20MB EFI.
+  local DATA_PART=""
+  DATA_PART="$(lsblk -ln -b -o NAME,SIZE,TYPE "$DEVICE" \
+    | awk -v dev="$(basename "$DEVICE")" '$3=="part" && $1!=dev {print $1,$2}' \
+    | sort -k2 -n | tail -1 | awk '{print "/dev/"$1}')"
+
+  if [[ -z "${DATA_PART:-}" || ! -b "$DATA_PART" ]]; then
+    DATA_PART="$(resolve_data_part || true)"
   fi
 
   if [[ -z "${DATA_PART:-}" || ! -b "$DATA_PART" ]]; then
@@ -421,7 +485,7 @@ do_write() {
     exit 1
   fi
 
-  # Safety: never format a tiny hybrid EFI partition by mistake
+  # Safety: never format the hybrid ISO/EFI slices by mistake
   local part_bytes
   part_bytes="$(blockdev --getsize64 "$DATA_PART")"
   if (( part_bytes < 5 * 1024 * 1024 * 1024 )); then
@@ -429,6 +493,7 @@ do_write() {
     lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,START "$DEVICE" || true
     exit 1
   fi
+  echo "==> Using data partition $DATA_PART ($(bytes_human "$part_bytes"))"
 
   echo "==> Formatting $DATA_PART as ext4 LABEL=$USB_REPO_LABEL ($(bytes_human "$part_bytes"))"
   mkfs.ext4 -F -L "$USB_REPO_LABEL" "$DATA_PART"
