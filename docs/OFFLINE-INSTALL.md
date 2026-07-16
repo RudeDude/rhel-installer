@@ -11,7 +11,22 @@ Permanent local mirror (after post-install): **`/var/lib/offline-repos`**
 
 ## 1. After first boot (USB still inserted)
 
-### Mount offline media (if not auto-mounted)
+### STIG / FIPS: USB “not authorized for usage”
+
+Hardened images often set `usbcore.authorized_default=0` and/or USBGuard.  
+`dmesg` shows: **`device is not authorized for usage`** and the stick never appears as a block device.
+
+**Fix first (no mount required if the helper was installed by kickstart):**
+
+```bash
+sudo authorize-offline-usb.sh
+# or, if only on the stick and you can get a shell copy another way:
+#   sudo bash /path/to/authorize-offline-usb.sh
+```
+
+That sets `authorized_default=1`, authorizes attached USB devices, loads `usb-storage`, and adds USBGuard allow rules for mass storage.
+
+### Mount offline media
 
 ```bash
 sudo mkdir -p /mnt/rhel8offline
@@ -23,6 +38,8 @@ sudo mount -L RHEL8OFFLINE /mnt/rhel8offline
 ```bash
 sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
 ```
+
+(`post-install-extra.sh` also runs USB authorization automatically before mount.)
 
 That script will:
 
@@ -143,6 +160,8 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror.
 
 | Symptom | Check |
 |---------|--------|
+| **dmesg: device is not authorized for usage** | `sudo authorize-offline-usb.sh` then re-insert USB; check `lsblk` / `blkid -L RHEL8OFFLINE` |
+| USB not in `lsblk` | Same as above; also `dmesg \| tail -50`, `systemctl status usbguard` |
 | dnf tries to use network | `sudo enable-offline-repos.sh`; ensure only `offline-local*.repo` is enabled |
 | No packages found | `sudo offline-repo-status.sh`; confirm BaseOS/AppStream under `/var/lib/offline-repos` |
 | htop missing | EPEL tree must exist under local mirror |

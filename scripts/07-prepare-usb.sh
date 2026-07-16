@@ -546,6 +546,10 @@ do_write() {
     cp -a "$ROOT/scripts/post-install-extra.sh" "$MNT/scripts/"
     chmod 755 "$MNT/scripts/post-install-extra.sh"
   fi
+  if [[ -f "$ROOT/scripts/authorize-offline-usb.sh" ]]; then
+    cp -a "$ROOT/scripts/authorize-offline-usb.sh" "$MNT/scripts/"
+    chmod 755 "$MNT/scripts/authorize-offline-usb.sh"
+  fi
 
   # Verify critical paths landed on the stick
   local missing=0

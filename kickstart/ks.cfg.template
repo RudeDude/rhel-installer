@@ -181,6 +181,59 @@ if [ "__KS_ENABLE_FIPS__" = "yes" ]; then
   update-crypto-policies --set FIPS || true
 fi
 
+# --- USB authorization for offline media (STIG often sets authorized_default=0) ---
+# dmesg symptom: "device is not authorized for usage"
+mkdir -p /etc/modprobe.d /usr/local/sbin
+cat > /etc/modprobe.d/offline-usb-authorize.conf <<'EOF'
+# Allow USB by default so air-gap offline media can be mounted after install.
+# STIG/FIPS images often default to authorized_default=0.
+options usbcore authorized_default=1
+EOF
+# Soften usb-storage install-hooks if present in image
+for f in /etc/modprobe.d/*; do
+  [ -f "$f" ] || continue
+  sed -i -E \
+    -e 's/^(\s*install\s+usb-storage\s+\/bin\/(true|false))/\# airgap: \1/' \
+    -e 's/^(\s*blacklist\s+usb-storage)/\# airgap: \1/' \
+    "$f" 2>/dev/null || true
+done
+# USBGuard: allow mass-storage class if daemon/policy exists
+if [ -d /etc/usbguard ] || command -v usbguard >/dev/null 2>&1; then
+  mkdir -p /etc/usbguard
+  if [ -f /etc/usbguard/rules.conf ]; then
+    cp -a /etc/usbguard/rules.conf /etc/usbguard/rules.conf.bak-airgap 2>/dev/null || true
+  fi
+  {
+    echo "# air-gap offline media (kickstart)"
+    echo "allow with-interface equals { 08:*:* }"
+    echo "allow with-interface equals { 09:*:* }"
+    echo "allow with-interface equals { 03:*:* }"
+    [ -f /etc/usbguard/rules.conf.bak-airgap ] && cat /etc/usbguard/rules.conf.bak-airgap
+  } > /etc/usbguard/rules.conf
+  chmod 0600 /etc/usbguard/rules.conf
+fi
+# Helper always available even if USB cannot be mounted yet
+cat > /usr/local/sbin/authorize-offline-usb.sh <<'EOS'
+#!/bin/bash
+set -euo pipefail
+[ "$(id -u)" -eq 0 ] || { echo "root required"; exit 1; }
+echo 1 > /sys/module/usbcore/parameters/authorized_default 2>/dev/null || true
+for a in /sys/bus/usb/devices/*/authorized; do [ -f "$a" ] && echo 1 > "$a" 2>/dev/null || true; done
+modprobe usb_storage 2>/dev/null || true
+modprobe uas 2>/dev/null || true
+if systemctl is-active --quiet usbguard 2>/dev/null; then
+  mkdir -p /etc/usbguard
+  grep -q '08:\*:\*' /etc/usbguard/rules.conf 2>/dev/null || \
+    sed -i '1i allow with-interface equals { 08:*:* }' /etc/usbguard/rules.conf 2>/dev/null || true
+  systemctl restart usbguard 2>/dev/null || true
+fi
+udevadm settle 2>/dev/null || true
+echo "USB authorize done. Devices:"
+lsblk -o NAME,SIZE,FSTYPE,LABEL 2>/dev/null || true
+blkid -L RHEL8OFFLINE 2>/dev/null && echo "Found RHEL8OFFLINE" || echo "Insert USB / re-run if LABEL missing"
+EOS
+chmod 755 /usr/local/sbin/authorize-offline-usb.sh
+
 # --- Offline package pass during install (USB must still be readable) ---
 # Anaconda often keeps the install USB available; try common mount points + label.
 try_mount_offline() {
@@ -229,15 +282,22 @@ fi
 
 cat > /etc/motd <<'EOF'
 Air-gapped RHEL 8.10 (custom kickstart)
-- Insert installer USB and run:  sudo enable-offline-repos.sh
-- Install/update packages:       sudo dnf install <pkg>  |  sudo dnf upgrade
-- Kickstart log:                 /root/ks-post.log
+If USB shows "device is not authorized for usage" in dmesg:
+  sudo authorize-offline-usb.sh
+Then:
+  sudo mkdir -p /mnt/rhel8offline
+  sudo mount -L RHEL8OFFLINE /mnt/rhel8offline
+  sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
+  # copies mirror to /var/lib/offline-repos and configures local dnf
 EOF
 
 cat > /root/README-OFFLINE.txt <<EOF
 Offline media label: $REPO_LABEL
+USB authorize:       /usr/local/sbin/authorize-offline-usb.sh
 Mount helper:        /usr/local/sbin/mount-offline-usb.sh
 Enable dnf repos:    /usr/local/sbin/enable-offline-repos.sh
+Post-install:        /mnt/rhel8offline/scripts/post-install-extra.sh
+  (copies mirror -> /var/lib/offline-repos, configures local dnf)
 Install mode:        __KS_INSTALL_MODE__
 EOF
 %end

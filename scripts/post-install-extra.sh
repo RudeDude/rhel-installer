@@ -27,17 +27,73 @@ fi
 
 log() { echo "==> $*"; }
 
+authorize_usb_for_offline_media() {
+  # STIG/FIPS images often set usbcore.authorized_default=0 and/or USBGuard,
+  # producing dmesg: "device is not authorized for usage".
+  if [[ -x /usr/local/sbin/authorize-offline-usb.sh ]]; then
+    log "Running authorize-offline-usb.sh (STIG USB lockdown)"
+    /usr/local/sbin/authorize-offline-usb.sh || true
+    return 0
+  fi
+  log "Authorizing USB devices (inline STIG workaround)"
+  if [[ -f /sys/module/usbcore/parameters/authorized_default ]]; then
+    echo 1 > /sys/module/usbcore/parameters/authorized_default 2>/dev/null || true
+  fi
+  for auth in /sys/bus/usb/devices/*/authorized; do
+    [[ -f "$auth" ]] && echo 1 > "$auth" 2>/dev/null || true
+  done
+  # Undo common STIG usb-storage blocks for this session
+  for f in /etc/modprobe.d/*usb* /etc/modprobe.d/*storage*; do
+    [[ -f "$f" ]] || continue
+    if grep -Eqi 'install\s+usb-storage\s+/bin/(true|false)|blacklist\s+usb' "$f" 2>/dev/null; then
+      sed -i -E \
+        -e 's/^(\s*install\s+usb-storage\s+\/bin\/(true|false))/\# airgap: \1/' \
+        -e 's/^(\s*blacklist\s+usb-storage)/\# airgap: \1/' \
+        "$f" 2>/dev/null || true
+    fi
+  done
+  modprobe usb_storage 2>/dev/null || true
+  modprobe uas 2>/dev/null || true
+  if systemctl is-active --quiet usbguard 2>/dev/null; then
+    mkdir -p /etc/usbguard
+    if [[ -f /etc/usbguard/rules.conf ]]; then
+      cp -a /etc/usbguard/rules.conf /etc/usbguard/rules.conf.bak-airgap 2>/dev/null || true
+    fi
+    {
+      echo "allow with-interface equals { 08:*:* }"
+      echo "allow with-interface equals { 09:*:* }"
+      [[ -f /etc/usbguard/rules.conf.bak-airgap ]] && cat /etc/usbguard/rules.conf.bak-airgap
+    } > /etc/usbguard/rules.conf
+    systemctl restart usbguard 2>/dev/null || true
+  fi
+  udevadm settle 2>/dev/null || true
+  sleep 1
+}
+
 mount_usb() {
+  authorize_usb_for_offline_media
   mkdir -p "$USB_MNT"
   if findmnt "$USB_MNT" >/dev/null 2>&1; then
     log "USB already mounted at $USB_MNT"
     return 0
   fi
   local dev
-  dev="$(blkid -L "$LABEL" 2>/dev/null || true)"
+  # Retry a few times after authorization (udev/block layer needs a moment)
+  local i
+  for i in 1 2 3 4 5 6 8 10; do
+    dev="$(blkid -L "$LABEL" 2>/dev/null || true)"
+    [[ -n "$dev" ]] && break
+    sleep 1
+    authorize_usb_for_offline_media
+  done
   if [[ -z "$dev" ]]; then
-    echo "ERROR: No filesystem with LABEL=$LABEL found. Insert the installer USB." >&2
+    echo "ERROR: No filesystem with LABEL=$LABEL found after USB authorize." >&2
+    echo "dmesg (usb/authoriz):" >&2
+    dmesg 2>/dev/null | tail -n 30 | grep -iE 'usb|authoriz|storage' || dmesg | tail -n 20 || true
+    echo "Try: sudo /usr/local/sbin/authorize-offline-usb.sh" >&2
+    echo "     (copy that script from the build host if not installed yet)" >&2
     blkid || true
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL || true
     exit 1
   fi
   mount -o ro "$dev" "$USB_MNT"
