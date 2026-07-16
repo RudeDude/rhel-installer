@@ -18,6 +18,12 @@
 | gedit | `gedit` (needs GUI groups) |
 | tree | `tree` |
 | util-linux-extra | **Debian name** — on RHEL use `util-linux`, `util-linux-user` |
+| rsync | `rsync` (BaseOS; already in offline tree) |
+| sshd | service name; package is `openssh-server` (+ `openssh`, `openssh-clients`) |
+| htop | **`htop` — EPEL 8 only**, not in RHEL BaseOS/AppStream/CRB |
+| nload | **`nload` — EPEL 8 only** |
+
+See `docs/ADDING-PACKAGES.md` for how to add more packages and re-sync.
 
 ## Desktop group
 
@@ -40,4 +46,15 @@ You do **not** need a separate “updates” repo for RHEL 8 the way RHEL 7 had 
 
 ## Optional EPEL
 
-EPEL is **not** covered by Red Hat subscription repos. If you need packages only in EPEL (e.g. some extras), mirror EPEL separately from `https://dl.fedoraproject.org/pub/epel/8/Everything/x86_64/` on a connected machine and drop it beside AppStream as `EPEL/`.
+EPEL is **not** covered by Red Hat subscription repos. Do **not** expect `htop` / `nload` from the main `01-reposync.sh` trees.
+
+Targeted fetch (recommended):
+
+```bash
+# edit packages/epel-extra.txt then:
+./scripts/05-fetch-epel-packages.sh
+```
+
+That builds `out/offline-repo/EPEL/` with resolved dependencies (much smaller than mirroring all of EPEL).
+
+Full EPEL Everything mirrors are optional and large; only use them if you intentionally want a broad third-party set.

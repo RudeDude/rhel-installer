@@ -1,0 +1,8 @@
+# Packages that are NOT in RHEL BaseOS/AppStream/CRB and need EPEL 8.
+# Fetched with: ./scripts/05-fetch-epel-packages.sh
+# Installed offline from out/offline-repo/EPEL when that tree is on the USB.
+#
+# Confirm names on a registered host:  dnf search <name>  (with epel enabled)
+
+htop
+nload

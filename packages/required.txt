@@ -27,6 +27,16 @@ bind-utils
 iputils
 iproute
 nmap-ncat
+# Interactive bandwidth monitor (RHEL AppStream/BaseOS do NOT ship this — see epel-extra.txt)
+# nload is listed in packages/epel-extra.txt and installed when EPEL offline tree is present
+
+# --- Admin / process / transfer ---
+# htop is EPEL-only on RHEL 8 — see packages/epel-extra.txt
+rsync
+# sshd service package (usually already on Server images; pin explicitly)
+openssh
+openssh-server
+openssh-clients
 
 # --- Data / scripting ---
 jq
@@ -46,7 +56,6 @@ java-11-openjdk-devel
 java-11-openjdk-headless
 
 # --- Archive / transfer (commonly needed offline) ---
-rsync
 curl
 wget
 tar

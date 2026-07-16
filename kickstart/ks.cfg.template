@@ -111,6 +111,12 @@ baseurl=file://$MNT/CodeReadyBuilder
 enabled=0
 gpgcheck=0
 module_hotfixes=1
+
+[offline-epel]
+name=Offline EPEL 8 (USB $REPO_LABEL)
+baseurl=file://$MNT/EPEL
+enabled=0
+gpgcheck=0
 EOF
 
 cat > /usr/local/sbin/mount-offline-usb.sh <<'EOS'
@@ -137,6 +143,7 @@ cat > /usr/local/sbin/enable-offline-repos.sh <<'EOS'
 #!/bin/bash
 set -euo pipefail
 /usr/local/sbin/mount-offline-usb.sh
+MNT="${2:-/mnt/rhel8offline}"
 subscription-manager repos --disable='*' 2>/dev/null || true
 # Prefer our offline file:// repos only
 for f in /etc/yum.repos.d/*.repo; do
@@ -145,9 +152,21 @@ for f in /etc/yum.repos.d/*.repo; do
     *) mv "$f" "$f.disabled" 2>/dev/null || true ;;
   esac
 done
+# Enable BaseOS/AppStream/CRB; EPEL only if tree exists on media
 sed -i 's/^enabled=.*/enabled=1/' /etc/yum.repos.d/offline-usb.repo
+if [[ ! -d "$MNT/EPEL/repodata" && ! -d "$MNT/EPEL/Packages" ]]; then
+  # disable epel section if missing
+  awk '
+    BEGIN{skip=0}
+    /^\[offline-epel\]/{skip=1}
+    skip && /^\[/ && !/^\[offline-epel\]/{skip=0}
+    skip && /^enabled=/{print "enabled=0"; next}
+    {print}
+  ' /etc/yum.repos.d/offline-usb.repo > /etc/yum.repos.d/offline-usb.repo.tmp \
+    && mv /etc/yum.repos.d/offline-usb.repo.tmp /etc/yum.repos.d/offline-usb.repo
+fi
 dnf clean all || true
-echo "Offline USB repos enabled."
+echo "Offline USB repos enabled (EPEL only if $MNT/EPEL present)."
 EOS
 chmod 755 /usr/local/sbin/enable-offline-repos.sh
 

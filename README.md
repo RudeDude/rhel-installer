@@ -126,9 +126,12 @@ Package name notes: `docs/PACKAGE-NOTES.md`.
 
 Lists:
 
-- `packages/required.txt` — core extras (Java, python/pip/pipx, editors, etc.)
+- `packages/required.txt` — core extras (Java, python/pip/pipx, rsync, openssh-server, editors, etc.)
 - `packages/recommended.txt` — admin tools, desktop extras, git (current selection)
+- `packages/epel-extra.txt` — EPEL-only tools (`htop`, `nload`, …) → `./scripts/05-fetch-epel-packages.sh`
 - `packages/groups.txt` — comps / environment groups for package-mode installs
+
+**Adding more packages later:** see **`docs/ADDING-PACKAGES.md`** (list files, when you need a re-sync vs EPEL fetch, USB update steps).
 
 ## Measured space (x86_64, newest-only reposync)
 
@@ -178,6 +181,7 @@ rhel-installer/
 ├── packages/
 │   ├── required.txt
 │   ├── recommended.txt
+│   ├── epel-extra.txt          # htop, nload, …
 │   └── groups.txt
 ├── kickstart/
 │   └── ks.cfg.template
@@ -188,6 +192,7 @@ rhel-installer/
 │   ├── 02-generate-kickstart.sh
 │   ├── 03-inject-kickstart.sh
 │   ├── 04-prepare-usb.sh       # --dry-run recommended first
+│   ├── 05-fetch-epel-packages.sh
 │   ├── status-reposync.sh
 │   └── post-install-extra.sh
 └── out/                        # gitignored: offline-repo, ISO, logs, ks.cfg

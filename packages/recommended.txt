@@ -2,7 +2,7 @@
 # Included when INCLUDE_RECOMMENDED=yes in config.env.
 
 # --- Admin / observability (user-selected) ---
-htop
+# htop / nload: NOT in RHEL BaseOS/AppStream — listed in packages/epel-extra.txt
 iotop
 sysstat
 lsof
@@ -27,4 +27,3 @@ which
 file
 less
 diffutils
-rsync
