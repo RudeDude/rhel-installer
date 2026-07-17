@@ -45,7 +45,8 @@ if [[ ${#HELPERS[@]} -eq 0 ]]; then
     offline-repo-status.sh
     configure-grub-timeout.sh
     install-airgap-helpers.sh
-    post-install-extra.sh
+    copy-offline-mirror-from-usb.sh
+    install-from-local-mirror.sh
     update-target-repo-from-usb.sh
   )
 fi
@@ -110,12 +111,15 @@ See /root/README.md for the full air-gap operator guide.
 Quick:
   sudo authorize-offline-usb.sh
   sudo mount-offline-usb.sh
-  sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh   # first time
-  sudo update-target-repo-from-usb.sh                         # later updates
+  # First setup (two steps — do not run installs while USB is the script path):
+  sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+  sudo umount /mnt/rhel8offline   # then unplug USB
+  sudo install-from-local-mirror.sh
+  # Later updates: sudo update-target-repo-from-usb.sh
   sudo enable-offline-repos.sh && sudo dnf install <pkg>
   sudo offline-repo-status.sh
 
-Local mirror (after post-install): /var/lib/offline-repos
+Local mirror (after step 1): /var/lib/offline-repos
 Docs: /usr/local/share/airgap/docs/  and  /root/airgap-docs/
 Package lists: /root/airgap-packages/  and  /usr/local/share/airgap/packages/
 EOF
@@ -125,7 +129,7 @@ mkdir -p /etc/motd.d
 cat > /etc/motd.d/99-airgap <<'EOF'
 Air-gapped RHEL — read: /root/README.md
 USB stuck?  sudo authorize-offline-usb.sh
-First setup: sudo mount-offline-usb.sh && sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
+Setup: copy-offline-mirror-from-usb.sh → umount USB → install-from-local-mirror.sh
 Day-to-day: sudo enable-offline-repos.sh && sudo dnf install <pkg>
 EOF
 # Remove older duplicate motd if present

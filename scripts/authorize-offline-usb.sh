@@ -143,5 +143,7 @@ echo
 echo "Done."
 echo "  USBGuard: stopped/disabled (permissive rules kept for optional re-enable)"
 echo "  Mount:  sudo mkdir -p /mnt/rhel8offline && sudo mount -L RHEL8OFFLINE /mnt/rhel8offline"
-echo "  Then:   sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh"
+echo "  Then:   sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh"
+echo "          sudo umount /mnt/rhel8offline  # unplug USB"
+echo "          sudo install-from-local-mirror.sh"
 echo "  Update: sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh"

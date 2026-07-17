@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify that packages from post-install-extra.sh can be resolved using ONLY
+# Verify that packages from install-from-local-mirror.sh can be resolved using ONLY
 # the offline trees under out/offline-repo (no CDN).
 #
 # Uses the registered rhel8-reposync container with file:// repos.
@@ -19,7 +19,7 @@ REPO_DIR="${REPO_DIR:-$ROOT/out/offline-repo}"
 if [[ "$REPO_DIR" != /* ]]; then REPO_DIR="$ROOT/${REPO_DIR#./}"; fi
 CONTAINER_NAME="${CONTAINER_NAME:-rhel8-reposync}"
 
-# Packages installed by post-install-extra.sh (keep in sync with that script)
+# Packages installed by install-from-local-mirror.sh (keep in sync with that script)
 RHEL_PKGS=(
   chrony nano bc socat jq python3 python3-pip python3-setuptools
   python3.11 python3.11-pip python3.11-setuptools
@@ -150,5 +150,5 @@ exit $rc
 
 echo
 echo "Exit code from container check: $?"
-echo "Note: post-install-extra.sh fails loudly if offline trees are incomplete."
+echo "Note: install-from-local-mirror.sh fails loudly if offline trees are incomplete."
 echo "      Prefer fixing missing deps here rather than relying on that."

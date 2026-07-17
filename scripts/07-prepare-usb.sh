@@ -247,7 +247,8 @@ preflight() {
   echo "  - scripts/ (all target helpers via target-scripts.list)"
   echo "  - project README.md"
   [[ -f "$ROOT/out/ks.cfg" ]] && echo "  - ks/ks.cfg" || echo "  - ks: (missing out/ks.cfg — run ./scripts/05-generate-kickstart.sh)"
-  [[ -f "$ROOT/scripts/post-install-extra.sh" ]] && echo "  - scripts/post-install-extra.sh OK" || echo "  - post-install-extra.sh MISSING"
+  [[ -f "$ROOT/scripts/copy-offline-mirror-from-usb.sh" ]] && echo "  - scripts/copy-offline-mirror-from-usb.sh OK" || echo "  - copy-offline-mirror-from-usb.sh MISSING"
+  [[ -f "$ROOT/scripts/install-from-local-mirror.sh" ]] && echo "  - scripts/install-from-local-mirror.sh OK" || echo "  - install-from-local-mirror.sh MISSING"
   [[ -f "$ROOT/scripts/install-airgap-helpers.sh" ]] && echo "  - scripts/install-airgap-helpers.sh OK" || echo "  - install-airgap-helpers.sh MISSING"
   [[ -f "$ROOT/docs/ROOT-HOME-README.md" ]] && echo "  - docs/ROOT-HOME-README.md OK" || echo "  - ROOT-HOME-README.md MISSING"
 
@@ -552,7 +553,8 @@ do_write() {
   else
     _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
          offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
-         post-install-extra.sh update-target-repo-from-usb.sh)
+         copy-offline-mirror-from-usb.sh install-from-local-mirror.sh
+         update-target-repo-from-usb.sh)
   fi
   for s in "${_ts[@]}"; do
     if [[ -f "$ROOT/scripts/$s" ]]; then
@@ -566,7 +568,8 @@ do_write() {
   # Verify critical paths landed on the stick
   local missing=0
   for need in BaseOS AppStream EPEL python-wheels docs/OFFLINE-INSTALL.md \
-              docs/ROOT-HOME-README.md scripts/post-install-extra.sh \
+              docs/ROOT-HOME-README.md scripts/copy-offline-mirror-from-usb.sh \
+              scripts/install-from-local-mirror.sh \
               scripts/install-airgap-helpers.sh scripts/authorize-offline-usb.sh; do
     if [[ ! -e "$MNT/$need" ]]; then
       echo "WARN: missing on media after copy: $need" >&2
@@ -599,13 +602,14 @@ Layout:
   scripts/              # all target helpers (post-install, authorize, update, …)
   ks/ks.cfg
 
-Quick start on installed system (USB inserted):
-  sudo authorize-offline-usb.sh          # if keyboard/storage blocked
+Quick start on installed system (two steps):
+  sudo authorize-offline-usb.sh
   sudo mount -L $USB_REPO_LABEL /mnt/rhel8offline
-  sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
+  sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+  sudo umount /mnt/rhel8offline
+  # unplug USB, then:
+  sudo install-from-local-mirror.sh
 
-  # Copies mirror to /var/lib/offline-repos, installs helpers/docs early,
-  # unmounts USB, then installs packages from local disk.
   # Day-to-day (no USB): see /root/README.md
   #   sudo offline-repo-status.sh
   #   sudo dnf install <package>

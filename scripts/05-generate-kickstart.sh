@@ -186,7 +186,8 @@ else
   TARGET_SCRIPTS=(
     authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
     offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
-    post-install-extra.sh update-target-repo-from-usb.sh
+    copy-offline-mirror-from-usb.sh install-from-local-mirror.sh
+    update-target-repo-from-usb.sh
   )
 fi
 for s in "${TARGET_SCRIPTS[@]}"; do
