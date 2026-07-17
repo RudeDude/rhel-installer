@@ -14,3 +14,8 @@
 # Modern pipx needs Python >= 3.8 (do not use platform python 3.6).
 
 pipx
+numpy
+scapy
+bitarray
+bitstring
+
