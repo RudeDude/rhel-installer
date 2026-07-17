@@ -197,40 +197,44 @@ for f in /etc/modprobe.d/*; do
     -e 's/^(\s*blacklist\s+usb-storage)/\# airgap: \1/' \
     "$f" 2>/dev/null || true
 done
-# USBGuard: allow mass-storage class if daemon/policy exists
+# USBGuard blocks keyboard+storage on this STIG image unless stopped.
+# Disable it for air-gap workflow; leave permissive rules if re-enabled later.
+systemctl stop usbguard.service usbguard-dbus.service 2>/dev/null || true
+systemctl disable usbguard.service usbguard-dbus.service 2>/dev/null || true
 if [ -d /etc/usbguard ] || command -v usbguard >/dev/null 2>&1; then
-  mkdir -p /etc/usbguard
+  mkdir -p /etc/usbguard /etc/usbguard/rules.d
   if [ -f /etc/usbguard/rules.conf ]; then
     cp -a /etc/usbguard/rules.conf /etc/usbguard/rules.conf.bak-airgap 2>/dev/null || true
   fi
+  cat > /etc/usbguard/rules.d/10-airgap-allow-hid-storage.conf <<'EOF'
+allow with-interface equals { 03:*:* }
+allow with-interface equals { 08:*:* }
+allow with-interface equals { 09:*:* }
+EOF
   {
-    echo "# air-gap offline media (kickstart)"
+    echo "allow with-interface equals { 03:*:* }"
     echo "allow with-interface equals { 08:*:* }"
     echo "allow with-interface equals { 09:*:* }"
-    echo "allow with-interface equals { 03:*:* }"
     [ -f /etc/usbguard/rules.conf.bak-airgap ] && cat /etc/usbguard/rules.conf.bak-airgap
   } > /etc/usbguard/rules.conf
   chmod 0600 /etc/usbguard/rules.conf
 fi
-# Helper always available even if USB cannot be mounted yet
+# Helper always available without mounting USB
 cat > /usr/local/sbin/authorize-offline-usb.sh <<'EOS'
 #!/bin/bash
 set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "root required"; exit 1; }
+systemctl stop usbguard.service usbguard-dbus.service 2>/dev/null || true
+systemctl disable usbguard.service usbguard-dbus.service 2>/dev/null || true
 echo 1 > /sys/module/usbcore/parameters/authorized_default 2>/dev/null || true
 for a in /sys/bus/usb/devices/*/authorized; do [ -f "$a" ] && echo 1 > "$a" 2>/dev/null || true; done
+modprobe usbhid 2>/dev/null || true
 modprobe usb_storage 2>/dev/null || true
 modprobe uas 2>/dev/null || true
-if systemctl is-active --quiet usbguard 2>/dev/null; then
-  mkdir -p /etc/usbguard
-  grep -q '08:\*:\*' /etc/usbguard/rules.conf 2>/dev/null || \
-    sed -i '1i allow with-interface equals { 08:*:* }' /etc/usbguard/rules.conf 2>/dev/null || true
-  systemctl restart usbguard 2>/dev/null || true
-fi
 udevadm settle 2>/dev/null || true
-echo "USB authorize done. Devices:"
+echo "USB authorize done (usbguard stopped). Devices:"
 lsblk -o NAME,SIZE,FSTYPE,LABEL 2>/dev/null || true
-blkid -L RHEL8OFFLINE 2>/dev/null && echo "Found RHEL8OFFLINE" || echo "Insert USB / re-run if LABEL missing"
+blkid -L RHEL8OFFLINE 2>/dev/null && echo "Found RHEL8OFFLINE" || echo "Insert USB if LABEL missing"
 EOS
 chmod 755 /usr/local/sbin/authorize-offline-usb.sh
 

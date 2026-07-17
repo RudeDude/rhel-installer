@@ -28,44 +28,25 @@ fi
 log() { echo "==> $*"; }
 
 authorize_usb_for_offline_media() {
-  # STIG/FIPS images often set usbcore.authorized_default=0 and/or USBGuard,
-  # producing dmesg: "device is not authorized for usage".
+  # Confirmed on target STIG image: stop usbguard + authorized_default=1 + modprobe usbhid uas
   if [[ -x /usr/local/sbin/authorize-offline-usb.sh ]]; then
-    log "Running authorize-offline-usb.sh (STIG USB lockdown)"
+    log "Running authorize-offline-usb.sh"
     /usr/local/sbin/authorize-offline-usb.sh || true
     return 0
   fi
-  log "Authorizing USB devices (inline STIG workaround)"
+  # Inline fallback (same policy)
+  log "USB authorize (inline): stop USBGuard, authorize devices, load hid/storage"
+  systemctl stop usbguard.service usbguard-dbus.service 2>/dev/null || true
+  systemctl disable usbguard.service usbguard-dbus.service 2>/dev/null || true
   if [[ -f /sys/module/usbcore/parameters/authorized_default ]]; then
     echo 1 > /sys/module/usbcore/parameters/authorized_default 2>/dev/null || true
   fi
   for auth in /sys/bus/usb/devices/*/authorized; do
     [[ -f "$auth" ]] && echo 1 > "$auth" 2>/dev/null || true
   done
-  # Undo common STIG usb-storage blocks for this session
-  for f in /etc/modprobe.d/*usb* /etc/modprobe.d/*storage*; do
-    [[ -f "$f" ]] || continue
-    if grep -Eqi 'install\s+usb-storage\s+/bin/(true|false)|blacklist\s+usb' "$f" 2>/dev/null; then
-      sed -i -E \
-        -e 's/^(\s*install\s+usb-storage\s+\/bin\/(true|false))/\# airgap: \1/' \
-        -e 's/^(\s*blacklist\s+usb-storage)/\# airgap: \1/' \
-        "$f" 2>/dev/null || true
-    fi
-  done
+  modprobe usbhid 2>/dev/null || true
   modprobe usb_storage 2>/dev/null || true
   modprobe uas 2>/dev/null || true
-  if systemctl is-active --quiet usbguard 2>/dev/null; then
-    mkdir -p /etc/usbguard
-    if [[ -f /etc/usbguard/rules.conf ]]; then
-      cp -a /etc/usbguard/rules.conf /etc/usbguard/rules.conf.bak-airgap 2>/dev/null || true
-    fi
-    {
-      echo "allow with-interface equals { 08:*:* }"
-      echo "allow with-interface equals { 09:*:* }"
-      [[ -f /etc/usbguard/rules.conf.bak-airgap ]] && cat /etc/usbguard/rules.conf.bak-airgap
-    } > /etc/usbguard/rules.conf
-    systemctl restart usbguard 2>/dev/null || true
-  fi
   udevadm settle 2>/dev/null || true
   sleep 1
 }
@@ -211,9 +192,11 @@ baseurl=file://\$LOCAL_REPO_ROOT/EPEL
 enabled=\$EPEL_EN
 gpgcheck=0
 EOF
+# Quiet "This system is not registered" — expected on air-gap boxes
 if command -v subscription-manager >/dev/null 2>&1; then
-  subscription-manager repos --disable='*' 2>/dev/null || true
+  subscription-manager repos --disable='*' >/dev/null 2>&1 || true
 fi
+export SUBSCRIPTION_MANAGER_IGNORE_REGISTRATION_WARNINGS=1 2>/dev/null || true
 for f in /etc/yum.repos.d/*.repo; do
   [[ -e "\$f" ]] || continue
   case "\$f" in
@@ -223,13 +206,17 @@ for f in /etc/yum.repos.d/*.repo; do
       ;;
   esac
 done
-# If our file was renamed by the loop, restore it
 if [[ -f "\${REPO_FILE}.disabled-by-airgap" && ! -f "\$REPO_FILE" ]]; then
   mv "\${REPO_FILE}.disabled-by-airgap" "\$REPO_FILE"
 fi
+# Prefer not loading RHSM plugin noise
+mkdir -p /etc/dnf/plugins
+if [[ -f /etc/dnf/plugins/subscription-manager.conf ]]; then
+  sed -i 's/^enabled\s*=\s*1/enabled=0/' /etc/dnf/plugins/subscription-manager.conf 2>/dev/null || true
+fi
 dnf clean all >/dev/null 2>&1 || true
-echo "Offline LOCAL repos enabled:"
-echo "  file://\$LOCAL_REPO_ROOT/{BaseOS,AppStream,CodeReadyBuilder,EPEL}"
+echo "Offline LOCAL repos enabled (file://\$LOCAL_REPO_ROOT/...)"
+echo "Note: 'system not registered' from subscription-manager is expected offline and is harmless."
 echo "Example:  dnf install <pkg>   |   dnf upgrade"
 EOS
   chmod 755 /usr/local/sbin/enable-offline-repos.sh

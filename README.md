@@ -125,10 +125,16 @@ chmod 600 config.env
 ./scripts/05-generate-kickstart.sh
 ./scripts/06-inject-kickstart.sh      # -> out/rhel-8.10-airgap-ks.iso
 
-# 07 Write USB (DESTRUCTIVE) — copies RPMs, EPEL, wheels, and offline docs
+# 07 Write USB first time only (DESTRUCTIVE) — full layout + docs
 ./scripts/07-prepare-usb.sh --dry-run /dev/sdb
 sudo ./scripts/07-prepare-usb.sh /dev/sdb
 # type YES when prompted
+
+# Later incremental USB updates (no reimage):
+#   sudo ./scripts/08-update-usb.sh --repos --device /dev/sdb
+#   sudo ./scripts/08-update-usb.sh --boot  --device /dev/sdb   # optional kickstart/ISO
+#   sudo ./scripts/08-update-usb.sh --all   --device /dev/sdb
+# On target: sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh
 ```
 
 ### Useful prepare-usb flags
@@ -230,9 +236,12 @@ rhel-installer/
 │   ├── 04-check-offline-deps.sh
 │   ├── 05-generate-kickstart.sh
 │   ├── 06-inject-kickstart.sh
-│   ├── 07-prepare-usb.sh
+│   ├── 07-prepare-usb.sh              # first-time full write
+│   ├── 08-update-usb.sh               # incremental USB content/boot update
+│   ├── authorize-offline-usb.sh       # STIG: stop usbguard, allow HID/storage
+│   ├── update-target-repo-from-usb.sh # on target: USB → /var/lib/offline-repos
 │   ├── status-reposync.sh
-│   └── post-install-extra.sh   # runs on the air-gapped host
+│   └── post-install-extra.sh          # first-time target setup + local mirror
 └── out/                        # offline-repo (BaseOS/AppStream/CRB/EPEL/python-wheels), ISO, logs
 ```
 

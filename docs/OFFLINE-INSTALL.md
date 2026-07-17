@@ -120,21 +120,34 @@ python3.11 -m pip install --no-index \
 
 ---
 
-## 5. Adding packages later
+## 5. Incremental updates (no full USB reimage)
 
-On a **connected build host**, update lists and re-fetch, then refresh the USB and re-run copy (or rsync new trees into `/var/lib/offline-repos` on the air-gapped host):
-
-| Kind | List | Fetch script |
-|------|------|----------------|
-| RHEL RPM | `packages/required.txt` | already in full reposync |
-| EPEL RPM | `packages/epel-extra.txt` | `./scripts/02-fetch-epel-packages.sh` |
-| PyPI | `packages/python-extra.txt` | `./scripts/03-fetch-python-wheels.sh` |
-
-Then `./scripts/07-prepare-usb.sh` and on the target either re-run post-install with USB, or:
+### On the connected build host
 
 ```bash
-sudo rsync -aH /mnt/rhel8offline/EPEL/ /var/lib/offline-repos/EPEL/
-sudo enable-offline-repos.sh
+# 1) Refresh content as needed
+./scripts/01-reposync.sh                 # RHEL errata/packages
+./scripts/02-fetch-epel-packages.sh      # if epel-extra.txt changed
+./scripts/03-fetch-python-wheels.sh      # if python-extra.txt changed
+
+# 2) Push to existing USB (keeps data partition; does not wipe stick)
+./scripts/08-update-usb.sh --repos --device /dev/sdb
+
+# Optional: also refresh hybrid boot/kickstart ISO area
+./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh
+sudo ./scripts/08-update-usb.sh --boot --device /dev/sdb
+# or both:
+sudo ./scripts/08-update-usb.sh --all --device /dev/sdb
+```
+
+### On the air-gapped target
+
+```bash
+sudo authorize-offline-usb.sh
+sudo mkdir -p /mnt/rhel8offline
+sudo mount -L RHEL8OFFLINE /mnt/rhel8offline
+sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh
+sudo dnf upgrade
 sudo dnf install <new-package>
 ```
 
@@ -151,7 +164,8 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror.
 04-check-offline-deps.sh      # optional
 05-generate-kickstart.sh
 06-inject-kickstart.sh
-07-prepare-usb.sh
+07-prepare-usb.sh             # first-time full write only
+08-update-usb.sh              # later incremental USB updates
 ```
 
 ---
