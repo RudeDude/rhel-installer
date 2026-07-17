@@ -44,10 +44,20 @@ fi
 
 mkdir -p "$USB_MNT"
 if ! findmnt "$USB_MNT" >/dev/null 2>&1; then
+  if [[ -x /usr/local/sbin/mount-offline-usb.sh ]]; then
+    /usr/local/sbin/mount-offline-usb.sh "$LABEL" "$USB_MNT" || true
+  fi
+fi
+if ! findmnt "$USB_MNT" >/dev/null 2>&1; then
   dev="$(blkid -L "$LABEL" 2>/dev/null || true)"
+  if [[ -z "$dev" && -n "${USB_UUID:-}" ]]; then
+    dev="$(blkid -U "$USB_UUID" 2>/dev/null || true)"
+  fi
   if [[ -z "$dev" ]]; then
-    echo "ERROR: LABEL=$LABEL not found. Insert offline USB and re-run authorize-offline-usb.sh" >&2
-    lsblk -o NAME,SIZE,FSTYPE,LABEL; blkid || true
+    echo "ERROR: LABEL=$LABEL not found (and mount-offline-usb failed)." >&2
+    echo "If only ~3G+~20M partitions: reimage on build host with 07-prepare-usb" >&2
+    echo "(08-update-usb never rewrites partitions)." >&2
+    lsblk -o NAME,SIZE,FSTYPE,LABEL,PARTLABEL,UUID,START; blkid || true
     exit 1
   fi
   mount -o ro "$dev" "$USB_MNT"

@@ -133,7 +133,8 @@ sudo ./scripts/07-prepare-usb.sh /dev/sdb
 
 # Later incremental USB updates (no reimage):
 #   sudo ./scripts/08-update-usb.sh --repos --device /dev/sdb
-#   sudo ./scripts/08-update-usb.sh --boot  --device /dev/sdb   # optional kickstart/ISO
+#   sudo ./scripts/08-update-usb.sh --ks    --device /dev/sdb   # kickstart/helpers only
+#   sudo ./scripts/08-update-usb.sh --boot  --device /dev/sdb   # mount ESP, update boot files only
 #   sudo ./scripts/08-update-usb.sh --all   --device /dev/sdb
 # On target: sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh
 ```

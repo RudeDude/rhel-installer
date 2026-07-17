@@ -142,11 +142,14 @@ python3.11 -m pip install --no-index \
 # 2) Push to existing USB (keeps data partition; does not wipe stick)
 ./scripts/08-update-usb.sh --repos --device /dev/sdb
 
-# Optional: also refresh hybrid boot/kickstart ISO area
-./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh
+# Kickstart / helpers only (no RPM rsync; no partition writes):
+./scripts/05-generate-kickstart.sh
+sudo ./scripts/08-update-usb.sh --ks --device /dev/sdb
+
+# Optional: mount writable EFI/ESP and refresh boot *files* only (never dd/GPT):
 sudo ./scripts/08-update-usb.sh --boot --device /dev/sdb
-# or both:
-sudo ./scripts/08-update-usb.sh --all --device /dev/sdb
+# Full installer ISO replace (rewrites partitions — first-image path only):
+#   ./scripts/06-inject-kickstart.sh && sudo ./scripts/07-prepare-usb.sh --yes /dev/sdb
 ```
 
 ### On the air-gapped target
@@ -193,4 +196,6 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator ind
 | pipx missing | `python-wheels/` under local mirror; use python3.11 |
 | Disk full on copy | Need ~35GB+ free on `/` (or set `LOCAL_REPO_ROOT` to a larger filesystem) |
 | GRUB kernel menu never times out | STIG often sets `GRUB_TIMEOUT=-1`. Run `sudo configure-grub-timeout.sh` then reboot |
+| Mount by label fails; only ~3G + ~20M parts | Offline-repo partition missing. `08-update-usb` never rewrites GPT — reimage: `sudo ./scripts/07-prepare-usb.sh --yes /dev/sdX` |
+| Mount helper: label missing but UUID exists | `sudo mount-offline-usb.sh` probes UUID/PARTLABEL/content; or `mount -o ro UUID=… /mnt/rhel8offline` |
 

@@ -64,23 +64,33 @@ mount_usb() {
     log "USB already mounted at $USB_MNT"
     return 0
   fi
+  # Prefer full mount helper (label → UUID → PARTLABEL → content probe)
+  if [[ -x /usr/local/sbin/mount-offline-usb.sh ]]; then
+    if /usr/local/sbin/mount-offline-usb.sh "$LABEL" "$USB_MNT"; then
+      return 0
+    fi
+  fi
   local dev
-  # Retry a few times after authorization (udev/block layer needs a moment)
   local i
   for i in 1 2 3 4 5 6 8 10; do
     dev="$(blkid -L "$LABEL" 2>/dev/null || true)"
     [[ -n "$dev" ]] && break
+    # UUID fallback if label missing after GPT repair
+    if [[ -n "${USB_UUID:-}" ]]; then
+      dev="$(blkid -U "$USB_UUID" 2>/dev/null || true)"
+      [[ -n "$dev" ]] && break
+    fi
     sleep 1
     authorize_usb_for_offline_media
   done
   if [[ -z "$dev" ]]; then
     echo "ERROR: No filesystem with LABEL=$LABEL found after USB authorize." >&2
-    echo "dmesg (usb/authoriz):" >&2
-    dmesg 2>/dev/null | tail -n 30 | grep -iE 'usb|authoriz|storage' || dmesg | tail -n 20 || true
-    echo "Try: sudo /usr/local/sbin/authorize-offline-usb.sh" >&2
-    echo "     (copy that script from the build host if not installed yet)" >&2
+    echo "If lsblk only shows ~3G + ~20M (no multi-GB data part), reimage on build host:" >&2
+    echo "  sudo ./scripts/07-prepare-usb.sh --yes /dev/sdX" >&2
+    echo "(08-update-usb never rewrites partitions.) Or try: mount -o ro UUID=… $USB_MNT" >&2
+    dmesg 2>/dev/null | tail -n 20 | grep -iE 'usb|authoriz|storage' || true
     blkid || true
-    lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL || true
+    lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,PARTLABEL,UUID,START || true
     exit 1
   fi
   mount -o ro "$dev" "$USB_MNT"

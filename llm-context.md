@@ -34,7 +34,9 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 2. **No USB keyboard** until same authorize path (need `usbhid`).
 3. **GRUB menu never auto-boots** — `GRUB_TIMEOUT=-1` / recordfail; fix with `configure-grub-timeout.sh`.
 4. **Hybrid USB partition** — isohybrid embeds GPT only spanning ~ISO size; data partition after ISO needs `sgdisk -e` (fix GPT) then create ext4 labeled `RHEL8OFFLINE`. Using parted alone / wrong type broke layout (“Invalid partition data”).
-5. **Repos sizes (approx):** RHEL newest-only ~31G; EPEL selected ~148M; wheels ~3.3M.
+5. **`08-update-usb` is mount-only** — never dd, never sgdisk -n/parted, never mkfs, never GPT repair. Updates data partition via mount+rsync; `--boot` only mounts existing small vfat ESP and copies files. ISO9660 hybrid body is RO → full installer image replace = **07-prepare-usb only**. Lost data partition entry → 07 (not 08).
+6. **Kickstart updates:** Default `KS_BOOT_SOURCE=data` → `inst.ks=hd:LABEL=RHEL8OFFLINE:/ks/ks.cfg`. `05-generate` + `08 --ks`. No boot rewrite for ks.
+7. **Repos sizes (approx):** RHEL newest-only ~31G; EPEL selected ~148M; wheels ~3.3M.
 
 ## Bugs / pitfalls fixed (build host)
 

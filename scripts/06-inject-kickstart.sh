@@ -54,9 +54,30 @@ if [[ -f "$WORK/extract/osbuild.ks" ]]; then
   echo "Replaced osbuild.ks with custom kickstart"
 fi
 
-# Prefer hd:LABEL form used by Image Builder ISOs; also works when ISO is the USB boot image
-KS_HD="inst.ks=hd:LABEL=${VOL_ID}:/ks/ks.cfg"
+# Where Anaconda loads kickstart from (see KS_BOOT_SOURCE in config.env):
+#   data (default) — LABEL=RHEL8OFFLINE:/ks/ks.cfg on the *ext4 offline* partition.
+#                    Update with 08-update-usb --repos or --ks only (no ISO dd).
+#   iso            — LABEL=<ISO volume>:/ks/ks.cfg inside the isohybrid image
+#                    (ks changes need 07-prepare-usb reimage; ISO9660 not writable)
+#   both           — data first; also keep a copy inside the ISO image
+USB_REPO_LABEL="${USB_REPO_LABEL:-RHEL8OFFLINE}"
+KS_BOOT_SOURCE="${KS_BOOT_SOURCE:-data}"
 KS_CD="inst.ks=cdrom:/ks/ks.cfg"
+case "$KS_BOOT_SOURCE" in
+  iso)
+    KS_HD="inst.ks=hd:LABEL=${VOL_ID}:/ks/ks.cfg"
+    echo "inst.ks source: ISO volume LABEL=$VOL_ID (boot rewrite needed for ks changes)"
+    ;;
+  both)
+    # Anaconda uses the first inst.ks=; put data partition first
+    KS_HD="inst.ks=hd:LABEL=${USB_REPO_LABEL}:/ks/ks.cfg"
+    echo "inst.ks source: data partition LABEL=$USB_REPO_LABEL (ISO still embeds a copy)"
+    ;;
+  data|*)
+    KS_HD="inst.ks=hd:LABEL=${USB_REPO_LABEL}:/ks/ks.cfg"
+    echo "inst.ks source: data partition LABEL=$USB_REPO_LABEL (update via --repos/--ks, not --boot)"
+    ;;
+esac
 
 python3 - "$WORK/extract" "$KS_HD" "$KS_CD" "$PRESERVE_STIG_BOOT_ARGS" <<'PY'
 import pathlib, re, sys
@@ -147,5 +168,12 @@ ls -lh "$OUT_ISO"
 echo
 echo "DONE: $OUT_ISO"
 echo "  Volume label: $VOL_ID"
-echo "  Kickstart:    /ks/ks.cfg (also written over osbuild.ks if present)"
-echo "Next: sudo ./scripts/07-prepare-usb.sh /dev/sdX"
+echo "  Kickstart on ISO image: /ks/ks.cfg (and osbuild.ks if present)"
+echo "  Boot inst.ks= : $KS_HD  (KS_BOOT_SOURCE=$KS_BOOT_SOURCE)"
+if [[ "$KS_BOOT_SOURCE" == "data" || "$KS_BOOT_SOURCE" == "both" ]]; then
+  echo "  → After USB is built, update kickstart with:"
+  echo "      ./scripts/05-generate-kickstart.sh"
+  echo "      sudo ./scripts/08-update-usb.sh --ks --device /dev/sdX"
+  echo "    (no --boot / no ISO rewrite for ks-only changes)"
+fi
+echo "Next (first time): sudo ./scripts/07-prepare-usb.sh /dev/sdX"
