@@ -4,3 +4,4 @@ out/
 .password
 secrets/
 rhel*.iso
+my-session.txt
