@@ -40,7 +40,8 @@ USB
     ├── EPEL/                   # required RPMs: htop, nload, pv, keepassxc, rdesktop
     ├── python-wheels/          # pre-staged PyPI wheels (pipx + deps)
     ├── ks/ks.cfg
-    └── scripts/post-install-extra.sh
+    ├── docs/                   # ROOT-HOME-README, OFFLINE-INSTALL, …
+    └── scripts/                # post-install, authorize, update, helpers
 ```
 
 ### Media in this directory

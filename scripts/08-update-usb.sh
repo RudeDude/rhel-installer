@@ -224,10 +224,19 @@ if [[ "$DO_REPOS" -eq 1 ]]; then
     --exclude='lost+found' \
     "$REPO_DIR"/ "$MNT"/
 
-  # Always refresh operator scripts/docs from project tree
+  # Always refresh operator scripts/docs from project tree (full target set)
   echo "==> Refreshing scripts, packages lists, and docs on USB"
   mkdir -p "$MNT/scripts" "$MNT/packages" "$MNT/docs"
-  for s in post-install-extra.sh authorize-offline-usb.sh update-target-repo-from-usb.sh; do
+  if [[ -f "$ROOT/scripts/target-scripts.list" ]]; then
+    cp -a "$ROOT/scripts/target-scripts.list" "$MNT/scripts/"
+    mapfile -t _ts < <(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+      "$ROOT/scripts/target-scripts.list")
+  else
+    _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
+         offline-repo-status.sh install-airgap-helpers.sh post-install-extra.sh
+         update-target-repo-from-usb.sh)
+  fi
+  for s in "${_ts[@]}"; do
     [[ -f "$ROOT/scripts/$s" ]] && cp -a "$ROOT/scripts/$s" "$MNT/scripts/" && chmod 755 "$MNT/scripts/$s"
   done
   cp -a "$ROOT/packages"/*.txt "$MNT/packages/" 2>/dev/null || true
@@ -245,7 +254,8 @@ if [[ "$DO_REPOS" -eq 1 ]]; then
 Air-gap media (incrementally updated $(date -Is))
 Label: $USB_REPO_LABEL
 
-START:  OFFLINE-INSTALL.md  or  docs/OFFLINE-INSTALL.md
+START:  docs/ROOT-HOME-README.md  (becomes /root/README.md on target)
+        docs/OFFLINE-INSTALL.md   or  OFFLINE-INSTALL.md
 
 On target:
   sudo authorize-offline-usb.sh
@@ -254,6 +264,8 @@ On target:
   sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
   # later incremental repo refresh only:
   sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh
+  # or if helpers already installed:
+  #   sudo update-target-repo-from-usb.sh
 EOF
 
   sync

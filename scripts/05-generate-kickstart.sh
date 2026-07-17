@@ -141,10 +141,67 @@ replace "__KS_WANT_GUI__" "$KS_WANT_GUI" "$KS_OUT"
 replace "__KS_POST_PACKAGE_LIST__" "$POST_PKG_LIST" "$KS_OUT"
 replace "__PACKAGE_PLACEHOLDER__" "$PKG_NL" "$KS_OUT"
 
-if [[ -d "${REPO_DIR:-$ROOT/out/offline-repo}" ]]; then
-  mkdir -p "${REPO_DIR:-$ROOT/out/offline-repo}/ks" "${REPO_DIR:-$ROOT/out/offline-repo}/scripts"
-  cp -a "$KS_OUT" "${REPO_DIR:-$ROOT/out/offline-repo}/ks/ks.cfg"
-  cp -a "$ROOT/scripts/post-install-extra.sh" "${REPO_DIR:-$ROOT/out/offline-repo}/scripts/" 2>/dev/null || true
+# Embed core helpers + root README into kickstart (available before USB mount)
+embed_or_stub() {
+  local placeholder="$1" path="$2" stub="$3"
+  if [[ -f "$path" ]]; then
+    replace "$placeholder" "$(cat "$path")" "$KS_OUT"
+  else
+    replace "$placeholder" "$stub" "$KS_OUT"
+  fi
+}
+embed_or_stub "__EMBED_AUTHORIZE_SCRIPT__" "$ROOT/scripts/authorize-offline-usb.sh" \
+  "#!/bin/bash
+echo 'authorize-offline-usb.sh missing at image build time' >&2"
+embed_or_stub "__EMBED_MOUNT_SCRIPT__" "$ROOT/scripts/mount-offline-usb.sh" \
+  "#!/bin/bash
+echo 'mount-offline-usb.sh missing at image build time' >&2"
+embed_or_stub "__EMBED_ENABLE_SCRIPT__" "$ROOT/scripts/enable-offline-repos.sh" \
+  "#!/bin/bash
+echo 'enable-offline-repos.sh missing at image build time' >&2"
+embed_or_stub "__EMBED_STATUS_SCRIPT__" "$ROOT/scripts/offline-repo-status.sh" \
+  "#!/bin/bash
+echo 'offline-repo-status.sh missing at image build time' >&2"
+embed_or_stub "__EMBED_ROOT_README__" "$ROOT/docs/ROOT-HOME-README.md" \
+  "# See docs/OFFLINE-INSTALL.md on the USB media"
+
+# Stage ALL target-facing scripts + docs into offline-repo early (for USB + install)
+REPO_OUT="${REPO_DIR:-$ROOT/out/offline-repo}"
+if [[ "$REPO_OUT" != /* ]]; then REPO_OUT="$ROOT/${REPO_OUT#./}"; fi
+mkdir -p "$REPO_OUT/ks" "$REPO_OUT/scripts" "$REPO_OUT/docs" "$REPO_OUT/packages"
+cp -a "$KS_OUT" "$REPO_OUT/ks/ks.cfg"
+
+# Target script list (single source of truth)
+if [[ -f "$ROOT/scripts/target-scripts.list" ]]; then
+  cp -a "$ROOT/scripts/target-scripts.list" "$REPO_OUT/scripts/"
+  mapfile -t TARGET_SCRIPTS < <(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+    "$ROOT/scripts/target-scripts.list")
+else
+  TARGET_SCRIPTS=(
+    authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
+    offline-repo-status.sh install-airgap-helpers.sh post-install-extra.sh
+    update-target-repo-from-usb.sh
+  )
+fi
+for s in "${TARGET_SCRIPTS[@]}"; do
+  if [[ -f "$ROOT/scripts/$s" ]]; then
+    cp -a "$ROOT/scripts/$s" "$REPO_OUT/scripts/"
+    chmod 755 "$REPO_OUT/scripts/$s"
+  else
+    echo "WARN: target script missing: $s" >&2
+  fi
+done
+
+cp -a "$ROOT/docs"/*.md "$REPO_OUT/docs/" 2>/dev/null || true
+cp -a "$ROOT/docs/OFFLINE-INSTALL.md" "$REPO_OUT/OFFLINE-INSTALL.md" 2>/dev/null || true
+cp -a "$ROOT/packages"/*.txt "$REPO_OUT/packages/" 2>/dev/null || true
+[[ -f "$ROOT/README.md" ]] && cp -a "$ROOT/README.md" "$REPO_OUT/docs/PROJECT-README.md"
+
+# Sanity: no leftover embed placeholders
+if grep -q '__EMBED_' "$KS_OUT"; then
+  echo "ERROR: unresolved embed placeholders remain in $KS_OUT:" >&2
+  grep -n '__EMBED_' "$KS_OUT" >&2 || true
+  exit 1
 fi
 
 echo "Wrote $KS_OUT"
@@ -152,4 +209,5 @@ echo "  Install mode: $KS_INSTALL_MODE"
 echo "  Partitioning: $([[ "$KS_CLEARPART_ALL" == "yes" ]] && echo automated || echo interactive)"
 echo "  FIPS: $KS_ENABLE_FIPS  GUI:%post=$KS_WANT_GUI"
 echo "  Post packages: ${#PKG_ARR[@]}"
+echo "  Staged ${#TARGET_SCRIPTS[@]} helpers + docs into $REPO_OUT/{scripts,docs,packages}"
 echo "Next: ./scripts/06-inject-kickstart.sh"

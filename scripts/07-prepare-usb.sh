@@ -243,11 +243,13 @@ preflight() {
   echo "Content that will be copied onto the data partition:"
   echo "  - Full offline-repo tree (BaseOS, AppStream, CRB, EPEL, python-wheels)"
   echo "  - packages/*.txt (package lists)"
-  echo "  - docs/ (OFFLINE-INSTALL.md, ADDING-PACKAGES.md, PACKAGE-NOTES.md, …)"
-  echo "  - scripts/post-install-extra.sh"
+  echo "  - docs/ (ROOT-HOME-README, OFFLINE-INSTALL, ADDING-PACKAGES, …)"
+  echo "  - scripts/ (all target helpers via target-scripts.list)"
   echo "  - project README.md"
   [[ -f "$ROOT/out/ks.cfg" ]] && echo "  - ks/ks.cfg" || echo "  - ks: (missing out/ks.cfg — run ./scripts/05-generate-kickstart.sh)"
   [[ -f "$ROOT/scripts/post-install-extra.sh" ]] && echo "  - scripts/post-install-extra.sh OK" || echo "  - post-install-extra.sh MISSING"
+  [[ -f "$ROOT/scripts/install-airgap-helpers.sh" ]] && echo "  - scripts/install-airgap-helpers.sh OK" || echo "  - install-airgap-helpers.sh MISSING"
+  [[ -f "$ROOT/docs/ROOT-HOME-README.md" ]] && echo "  - docs/ROOT-HOME-README.md OK" || echo "  - ROOT-HOME-README.md MISSING"
 
   echo
   echo "Required tools:"
@@ -284,8 +286,8 @@ plan() {
 4. mkfs.ext4 -L $USB_REPO_LABEL <new-partition>
 5. rsync -aH $REPO_DIR/  (BaseOS, AppStream, CRB, EPEL, python-wheels, …)
 6. Overlay offline reference material:
-     packages/  docs/  scripts/post-install-extra.sh  README.md  ks/ks.cfg
-7. Write README-ON-MEDIA.txt pointing at docs/OFFLINE-INSTALL.md
+     packages/  docs/ (incl. ROOT-HOME-README)  scripts/ (all target helpers)  ks/ks.cfg
+7. Write README-ON-MEDIA.txt pointing at docs/ROOT-HOME-README.md + OFFLINE-INSTALL.md
 8. sync + unmount
 
 RESULT:
@@ -542,20 +544,30 @@ do_write() {
   else
     echo "WARN: out/ks.cfg missing — not copied"
   fi
-  if [[ -f "$ROOT/scripts/post-install-extra.sh" ]]; then
-    cp -a "$ROOT/scripts/post-install-extra.sh" "$MNT/scripts/"
-    chmod 755 "$MNT/scripts/post-install-extra.sh"
+  # All target-facing helpers (single list)
+  if [[ -f "$ROOT/scripts/target-scripts.list" ]]; then
+    cp -a "$ROOT/scripts/target-scripts.list" "$MNT/scripts/"
+    mapfile -t _ts < <(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+      "$ROOT/scripts/target-scripts.list")
+  else
+    _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
+         offline-repo-status.sh install-airgap-helpers.sh post-install-extra.sh
+         update-target-repo-from-usb.sh)
   fi
-  for s in authorize-offline-usb.sh update-target-repo-from-usb.sh; do
+  for s in "${_ts[@]}"; do
     if [[ -f "$ROOT/scripts/$s" ]]; then
       cp -a "$ROOT/scripts/$s" "$MNT/scripts/"
       chmod 755 "$MNT/scripts/$s"
+    else
+      echo "WARN: target script missing: $s" >&2
     fi
   done
 
   # Verify critical paths landed on the stick
   local missing=0
-  for need in BaseOS AppStream EPEL python-wheels docs/OFFLINE-INSTALL.md scripts/post-install-extra.sh; do
+  for need in BaseOS AppStream EPEL python-wheels docs/OFFLINE-INSTALL.md \
+              docs/ROOT-HOME-README.md scripts/post-install-extra.sh \
+              scripts/install-airgap-helpers.sh scripts/authorize-offline-usb.sh; do
     if [[ ! -e "$MNT/$need" ]]; then
       echo "WARN: missing on media after copy: $need" >&2
       missing=1
@@ -574,26 +586,27 @@ Created: $(date -Is)
 Installer ISO written to start of this USB: $(basename "$ISO")
 Repo filesystem label: $USB_REPO_LABEL
 
-START HERE (offline instructions):
-  docs/OFFLINE-INSTALL.md
-  (also copied as OFFLINE-INSTALL.md in this partition root)
+START HERE:
+  docs/ROOT-HOME-README.md   (installed as /root/README.md on target)
+  docs/OFFLINE-INSTALL.md    (also OFFLINE-INSTALL.md at partition root)
 
 Layout:
   BaseOS/  AppStream/  CodeReadyBuilder/
   EPEL/                 # htop, nload, pv, keepassxc, rdesktop, …
   python-wheels/        # pipx + deps (offline pip)
   packages/             # required.txt, epel-extra.txt, python-extra.txt, …
-  docs/                 # OFFLINE-INSTALL, ADDING-PACKAGES, PACKAGE-NOTES, …
-  scripts/post-install-extra.sh
+  docs/                 # ROOT-HOME-README, OFFLINE-INSTALL, ADDING-PACKAGES, …
+  scripts/              # all target helpers (post-install, authorize, update, …)
   ks/ks.cfg
 
 Quick start on installed system (USB inserted):
-  sudo mkdir -p /mnt/rhel8offline
+  sudo authorize-offline-usb.sh          # if keyboard/storage blocked
   sudo mount -L $USB_REPO_LABEL /mnt/rhel8offline
   sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
 
-  # That copies the mirror to /var/lib/offline-repos and points dnf there.
-  # USB can be removed afterward. Day-to-day:
+  # Copies mirror to /var/lib/offline-repos, installs helpers/docs early,
+  # unmounts USB, then installs packages from local disk.
+  # Day-to-day (no USB): see /root/README.md
   #   sudo offline-repo-status.sh
   #   sudo dnf install <package>
 EOF

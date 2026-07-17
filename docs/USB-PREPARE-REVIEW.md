@@ -25,7 +25,8 @@ Run this **after** all fetch + kickstart steps:
    - `python-wheels/` (pipx + deps)
    - `packages/*.txt`
    - `docs/` including **`OFFLINE-INSTALL.md`**
-   - `scripts/post-install-extra.sh`
+   - `scripts/` (all target helpers: post-install, authorize, update, install-airgap-helpers, …)
+   - `docs/ROOT-HOME-README.md` (becomes `/root/README.md` on target)
    - `ks/ks.cfg`
    - `README-ON-MEDIA.txt` / root `OFFLINE-INSTALL.md`
 

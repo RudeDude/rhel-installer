@@ -1,7 +1,11 @@
 # Offline / air-gapped install reference
 
 This document is copied onto the USB and onto the target system under
-`/var/lib/offline-repos/` (after post-install) for use **without internet**.
+`/var/lib/offline-repos/`, `/root/airgap-docs/`, and `/usr/local/share/airgap/docs/`
+for use **without internet**.
+
+**Primary operator guide on the target:** **`/root/README.md`**  
+(source: `docs/ROOT-HOME-README.md` — installed at kickstart time and refreshed by helpers).
 
 USB media label: **`RHEL8OFFLINE`** (unless you changed `USB_REPO_LABEL`).
 
@@ -16,7 +20,7 @@ Permanent local mirror (after post-install): **`/var/lib/offline-repos`**
 Hardened images often set `usbcore.authorized_default=0` and/or USBGuard.  
 `dmesg` shows: **`device is not authorized for usage`** and the stick never appears as a block device.
 
-**Fix first (no mount required if the helper was installed by kickstart):**
+**Fix first (helper is embedded by kickstart and also on the USB):**
 
 ```bash
 sudo authorize-offline-usb.sh
@@ -24,13 +28,13 @@ sudo authorize-offline-usb.sh
 #   sudo bash /path/to/authorize-offline-usb.sh
 ```
 
-That sets `authorized_default=1`, authorizes attached USB devices, loads `usb-storage`, and adds USBGuard allow rules for mass storage.
+That stops/disables USBGuard, sets `authorized_default=1`, authorizes devices, and loads `usbhid` / `usb_storage` / `uas`.
 
 ### Mount offline media
 
 ```bash
-sudo mkdir -p /mnt/rhel8offline
-sudo mount -L RHEL8OFFLINE /mnt/rhel8offline
+sudo mount-offline-usb.sh
+# equivalent: sudo mkdir -p /mnt/rhel8offline && sudo mount -L RHEL8OFFLINE /mnt/rhel8offline
 ```
 
 ### Run the post-install package pass (required)
@@ -39,20 +43,22 @@ sudo mount -L RHEL8OFFLINE /mnt/rhel8offline
 sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
 ```
 
-(`post-install-extra.sh` also runs USB authorization automatically before mount.)
+(`post-install-extra.sh` runs USB authorization, then **installs all helpers/docs from USB immediately**, before the long rsync.)
 
-That script will:
+That script runs in two phases:
 
+**Phase A (USB required — copy only)**  
 1. Mount the USB offline partition  
-2. **Copy the full repo mirror** to local disk: **`/var/lib/offline-repos/`**  
-   (BaseOS, AppStream, CodeReadyBuilder, EPEL, python-wheels, docs, packages, scripts)  
-3. **Configure permanent dnf sources** in `/etc/yum.repos.d/offline-local.repo`  
-   with `baseurl=file:///var/lib/offline-repos/...`  
-4. Disable CDN / other repos so dnf stays air-gapped  
-5. Install tools, EPEL packages, pipx (wheels), Server with GUI  
-6. Install helpers: `enable-offline-repos.sh`, `offline-repo-status.sh`  
+2. **Install helpers + docs early** (`install-airgap-helpers.sh`)  
+3. **Copy the full repo mirror** to local disk: **`/var/lib/offline-repos/`**  
+4. **Configure permanent dnf sources** (`enable-offline-repos.sh` → `offline-local.repo`)  
+5. **Unmount the USB** and print a clear “you may remove the stick now” banner  
 
-**After this completes, you can remove the USB.** Future `dnf install` / `dnf upgrade` use the local disk copy only.
+**Phase B (USB not required — long installs)**  
+6. `dnf upgrade` + package installs + EPEL + pipx wheels + Server with GUI  
+   all from **local disk only**  
+
+You can **unplug the USB as soon as Phase A finishes** (before the long package install / reboot). Future `dnf` continues to use the local mirror.
 
 Optional env vars for the script:
 
@@ -89,7 +95,7 @@ Repo file: `/etc/yum.repos.d/offline-local.repo`
 | `offline-local-crb` | `…/CodeReadyBuilder` |
 | `offline-local-epel` | `…/EPEL` |
 
-Also see: `/root/README-OFFLINE-REPOS.txt`
+Also see: **`/root/README.md`** (full guide) and `/root/README-OFFLINE-REPOS.txt` (short pointer).
 
 ---
 
@@ -114,7 +120,10 @@ python3.11 -m pip install --no-index \
   BaseOS/  AppStream/  CodeReadyBuilder/
   EPEL/
   python-wheels/
-  packages/   docs/   scripts/post-install-extra.sh
+  packages/
+  docs/                 # ROOT-HOME-README, OFFLINE-INSTALL, ADDING-PACKAGES, …
+  scripts/              # all target helpers (see target-scripts.list)
+  ks/ks.cfg
   OFFLINE-INSTALL.md   README-ON-MEDIA.txt
 ```
 
@@ -144,14 +153,16 @@ sudo ./scripts/08-update-usb.sh --all --device /dev/sdb
 
 ```bash
 sudo authorize-offline-usb.sh
-sudo mkdir -p /mnt/rhel8offline
-sudo mount -L RHEL8OFFLINE /mnt/rhel8offline
-sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh
+sudo mount-offline-usb.sh
+sudo update-target-repo-from-usb.sh
+# (or: sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh)
 sudo dnf upgrade
 sudo dnf install <new-package>
 ```
 
-Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror.
+That update also re-runs `install-airgap-helpers.sh` so scripts/docs stay current.
+
+Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator index: `/root/README.md`.
 
 ---
 

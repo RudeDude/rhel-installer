@@ -1,0 +1,10 @@
+# Target-facing scripts only (installed on the air-gapped system).
+# Build-host pipeline scripts 01-08 are NOT listed here.
+# Consumed by: 05-generate-kickstart, 07-prepare-usb, 08-update-usb, install-airgap-helpers.
+authorize-offline-usb.sh
+mount-offline-usb.sh
+enable-offline-repos.sh
+offline-repo-status.sh
+install-airgap-helpers.sh
+post-install-extra.sh
+update-target-repo-from-usb.sh

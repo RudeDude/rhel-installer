@@ -72,13 +72,23 @@ rsync -aH --info=progress2 --delete \
   --exclude='lost+found' \
   "$USB_MNT"/ "$LOCAL_REPO_ROOT"/
 
-# Configure permanent local repos
-EPEL_EN=0
-CRB_EN=0
-[[ -d "$LOCAL_REPO_ROOT/EPEL/repodata" || -d "$LOCAL_REPO_ROOT/EPEL/Packages" ]] && EPEL_EN=1
-[[ -d "$LOCAL_REPO_ROOT/CodeReadyBuilder" ]] && CRB_EN=1
+# Refresh ALL helpers + docs from local mirror (single installer — no partial cp list)
+if [[ -x "$LOCAL_REPO_ROOT/scripts/install-airgap-helpers.sh" ]]; then
+  bash "$LOCAL_REPO_ROOT/scripts/install-airgap-helpers.sh" "$LOCAL_REPO_ROOT" || true
+elif [[ -x /usr/local/sbin/install-airgap-helpers.sh ]]; then
+  /usr/local/sbin/install-airgap-helpers.sh "$LOCAL_REPO_ROOT" || true
+fi
 
-cat > "$REPO_FILE_LOCAL" <<EOF
+# Point dnf at local mirror (canonical enable script)
+export LOCAL_REPO_ROOT
+if [[ -x /usr/local/sbin/enable-offline-repos.sh ]]; then
+  /usr/local/sbin/enable-offline-repos.sh
+else
+  # Minimal fallback if helpers not yet installed
+  EPEL_EN=0; CRB_EN=0
+  [[ -d "$LOCAL_REPO_ROOT/EPEL/repodata" || -d "$LOCAL_REPO_ROOT/EPEL/Packages" ]] && EPEL_EN=1
+  [[ -d "$LOCAL_REPO_ROOT/CodeReadyBuilder" ]] && CRB_EN=1
+  cat > "$REPO_FILE_LOCAL" <<EOF
 # Updated by update-target-repo-from-usb.sh $(date -Is)
 [offline-local-baseos]
 name=Offline BaseOS (local disk)
@@ -86,56 +96,24 @@ baseurl=file://${LOCAL_REPO_ROOT}/BaseOS
 enabled=1
 gpgcheck=0
 module_hotfixes=1
-
 [offline-local-appstream]
 name=Offline AppStream (local disk)
 baseurl=file://${LOCAL_REPO_ROOT}/AppStream
 enabled=1
 gpgcheck=0
 module_hotfixes=1
-
 [offline-local-crb]
 name=Offline CodeReady Builder (local disk)
 baseurl=file://${LOCAL_REPO_ROOT}/CodeReadyBuilder
 enabled=${CRB_EN}
 gpgcheck=0
 module_hotfixes=1
-
 [offline-local-epel]
 name=Offline EPEL 8 (local disk)
 baseurl=file://${LOCAL_REPO_ROOT}/EPEL
 enabled=${EPEL_EN}
 gpgcheck=0
 EOF
-
-# Quiet subscription noise; disable other repos
-if command -v subscription-manager >/dev/null 2>&1; then
-  subscription-manager repos --disable='*' >/dev/null 2>&1 || true
-fi
-if [[ -f /etc/dnf/plugins/subscription-manager.conf ]]; then
-  sed -i 's/^enabled\s*=\s*1/enabled=0/' /etc/dnf/plugins/subscription-manager.conf 2>/dev/null || true
-fi
-for f in /etc/yum.repos.d/*.repo; do
-  [[ -e "$f" ]] || continue
-  case "$f" in
-    *offline-local.repo) ;;
-    *)
-      [[ -f "${f}.disabled-by-airgap" ]] || mv "$f" "${f}.disabled-by-airgap" 2>/dev/null || true
-      ;;
-  esac
-done
-
-# Install/update helpers from media if present
-if [[ -f "$LOCAL_REPO_ROOT/scripts/authorize-offline-usb.sh" ]]; then
-  cp -a "$LOCAL_REPO_ROOT/scripts/authorize-offline-usb.sh" /usr/local/sbin/
-  chmod 755 /usr/local/sbin/authorize-offline-usb.sh
-fi
-if [[ -f "$LOCAL_REPO_ROOT/scripts/update-target-repo-from-usb.sh" ]]; then
-  cp -a "$LOCAL_REPO_ROOT/scripts/update-target-repo-from-usb.sh" /usr/local/sbin/
-  chmod 755 /usr/local/sbin/update-target-repo-from-usb.sh
-fi
-if [[ -x /usr/local/sbin/enable-offline-repos.sh ]]; then
-  /usr/local/sbin/enable-offline-repos.sh >/dev/null 2>&1 || true
 fi
 
 dnf clean all >/dev/null 2>&1 || true
@@ -144,6 +122,7 @@ log "Local mirror updated."
 du -sh "$LOCAL_REPO_ROOT" "$LOCAL_REPO_ROOT"/* 2>/dev/null | head -20
 echo
 echo "dnf is pointed at file://${LOCAL_REPO_ROOT}/..."
+echo "  Root guide: /root/README.md"
 echo "  sudo dnf --refresh list updates | head"
 echo "  sudo dnf upgrade"
 echo "  sudo dnf install <package>"

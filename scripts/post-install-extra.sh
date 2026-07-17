@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # Run on the installed RHEL system with the offline USB inserted (first time).
 #
-# 1) Mounts USB (LABEL=RHEL8OFFLINE)
-# 2) Copies the full repo mirror (+ wheels/docs) to LOCAL disk
-# 3) Configures permanent dnf/yum .repo files to use the local copy
-# 4) Installs packages / wheels from local disk (USB no longer required after this)
+# Phase A (USB required):
+#   1) Mount USB (LABEL=RHEL8OFFLINE)
+#   2) Copy full repo mirror (+ wheels/docs) to LOCAL disk
+#   3) Configure permanent dnf .repo files -> local disk
+#   4) Unmount USB  << you may remove the stick here
+#
+# Phase B (USB not required — long running):
+#   5) dnf upgrade + package installs + wheels + GUI from local disk
 #
 # Env overrides:
 #   USB_REPO_LABEL   default RHEL8OFFLINE
 #   USB_MNT          default /mnt/rhel8offline
 #   LOCAL_REPO_ROOT  default /var/lib/offline-repos
 #   SKIP_REPO_COPY=1 skip copy if local mirror already present and complete
+#   SKIP_USB_UNMOUNT=1  leave USB mounted after copy (default: unmount)
 set -euo pipefail
 
 LABEL="${USB_REPO_LABEL:-RHEL8OFFLINE}"
@@ -19,6 +24,7 @@ LOCAL_REPO_ROOT="${LOCAL_REPO_ROOT:-/var/lib/offline-repos}"
 REPO_FILE_LOCAL="/etc/yum.repos.d/offline-local.repo"
 REPO_FILE_USB="/etc/yum.repos.d/offline-usb.repo"
 SKIP_REPO_COPY="${SKIP_REPO_COPY:-0}"
+SKIP_USB_UNMOUNT="${SKIP_USB_UNMOUNT:-0}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root" >&2
@@ -147,107 +153,32 @@ disable_cdn_repos() {
   done
 }
 
-install_local_helpers() {
-  cat > /usr/local/sbin/enable-offline-repos.sh <<EOS
-#!/bin/bash
-# Enable permanent local-disk offline dnf repos (USB not required).
-set -euo pipefail
-LOCAL_REPO_ROOT="${LOCAL_REPO_ROOT}"
-REPO_FILE="${REPO_FILE_LOCAL}"
-if [[ ! -d "\$LOCAL_REPO_ROOT/BaseOS" ]]; then
-  echo "Local offline mirror missing at \$LOCAL_REPO_ROOT" >&2
-  exit 1
-fi
-EPEL_EN=0
-CRB_EN=0
-[[ -d "\$LOCAL_REPO_ROOT/EPEL/repodata" || -d "\$LOCAL_REPO_ROOT/EPEL/Packages" ]] && EPEL_EN=1
-[[ -d "\$LOCAL_REPO_ROOT/CodeReadyBuilder" ]] && CRB_EN=1
-cat > "\$REPO_FILE" <<EOF
-# Permanent air-gap package sources (local disk)
-# Root: \$LOCAL_REPO_ROOT
-[offline-local-baseos]
-name=Offline BaseOS (local disk)
-baseurl=file://\$LOCAL_REPO_ROOT/BaseOS
-enabled=1
-gpgcheck=0
-module_hotfixes=1
-
-[offline-local-appstream]
-name=Offline AppStream (local disk)
-baseurl=file://\$LOCAL_REPO_ROOT/AppStream
-enabled=1
-gpgcheck=0
-module_hotfixes=1
-
-[offline-local-crb]
-name=Offline CodeReady Builder (local disk)
-baseurl=file://\$LOCAL_REPO_ROOT/CodeReadyBuilder
-enabled=\$CRB_EN
-gpgcheck=0
-module_hotfixes=1
-
-[offline-local-epel]
-name=Offline EPEL 8 (local disk)
-baseurl=file://\$LOCAL_REPO_ROOT/EPEL
-enabled=\$EPEL_EN
-gpgcheck=0
-EOF
-# Quiet "This system is not registered" — expected on air-gap boxes
-if command -v subscription-manager >/dev/null 2>&1; then
-  subscription-manager repos --disable='*' >/dev/null 2>&1 || true
-fi
-export SUBSCRIPTION_MANAGER_IGNORE_REGISTRATION_WARNINGS=1 2>/dev/null || true
-for f in /etc/yum.repos.d/*.repo; do
-  [[ -e "\$f" ]] || continue
-  case "\$f" in
-    *offline-local.repo) ;;
-    *)
-      [[ -f "\${f}.disabled-by-airgap" ]] || mv "\$f" "\${f}.disabled-by-airgap" 2>/dev/null || true
-      ;;
-  esac
-done
-if [[ -f "\${REPO_FILE}.disabled-by-airgap" && ! -f "\$REPO_FILE" ]]; then
-  mv "\${REPO_FILE}.disabled-by-airgap" "\$REPO_FILE"
-fi
-# Prefer not loading RHSM plugin noise
-mkdir -p /etc/dnf/plugins
-if [[ -f /etc/dnf/plugins/subscription-manager.conf ]]; then
-  sed -i 's/^enabled\s*=\s*1/enabled=0/' /etc/dnf/plugins/subscription-manager.conf 2>/dev/null || true
-fi
-dnf clean all >/dev/null 2>&1 || true
-echo "Offline LOCAL repos enabled (file://\$LOCAL_REPO_ROOT/...)"
-echo "Note: 'system not registered' from subscription-manager is expected offline and is harmless."
-echo "Example:  dnf install <pkg>   |   dnf upgrade"
-EOS
-  chmod 755 /usr/local/sbin/enable-offline-repos.sh
-
-  cat > /usr/local/sbin/offline-repo-status.sh <<EOS
-#!/bin/bash
-LOCAL="${LOCAL_REPO_ROOT}"
-echo "Local offline mirror: \$LOCAL"
-du -sh "\$LOCAL" 2>/dev/null || echo "(missing)"
-for d in BaseOS AppStream CodeReadyBuilder EPEL python-wheels; do
-  if [[ -e "\$LOCAL/\$d" ]]; then
-    printf '  %-18s %s\n' "\$d" "\$(du -sh "\$LOCAL/\$d" 2>/dev/null | awk '{print \$1}')"
+# Install helpers/docs from a media root (single path — no duplicated heredocs)
+install_helpers_from() {
+  local src="$1"
+  if [[ -x "$src/scripts/install-airgap-helpers.sh" ]]; then
+    bash "$src/scripts/install-airgap-helpers.sh" "$src" || true
+  elif [[ -x /usr/local/sbin/install-airgap-helpers.sh ]]; then
+    /usr/local/sbin/install-airgap-helpers.sh "$src" || true
   else
-    printf '  %-18s MISSING\n' "\$d"
+    mkdir -p /usr/local/sbin /usr/local/share/airgap/docs /root/airgap-docs
+    local s
+    for s in authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh \
+             offline-repo-status.sh post-install-extra.sh update-target-repo-from-usb.sh \
+             install-airgap-helpers.sh; do
+      [[ -f "$src/scripts/$s" ]] && cp -a "$src/scripts/$s" /usr/local/sbin/ && chmod 755 "/usr/local/sbin/$s"
+    done
+    [[ -d "$src/docs" ]] && cp -a "$src/docs"/. /usr/local/share/airgap/docs/ && cp -a "$src/docs"/. /root/airgap-docs/
+    [[ -f "$src/docs/ROOT-HOME-README.md" ]] && cp -a "$src/docs/ROOT-HOME-README.md" /root/README.md
   fi
-done
-echo "Repo file: ${REPO_FILE_LOCAL}"
-grep -E '^\\[|^baseurl=|^enabled=' "${REPO_FILE_LOCAL}" 2>/dev/null || echo "(not configured)"
-EOS
-  chmod 755 /usr/local/sbin/offline-repo-status.sh
-
-  mkdir -p /etc/motd.d
-  cat > /etc/motd.d/99-offline-repos <<EOF
-Air-gapped package cache: ${LOCAL_REPO_ROOT}
-  sudo offline-repo-status.sh
-  sudo enable-offline-repos.sh
-  sudo dnf install <package>
-EOF
 }
 
 # ---------- main ----------
+echo
+echo "############################################################"
+echo "# Phase A: copy offline mirror to local disk (USB required) #"
+echo "############################################################"
+
 log "Mounting offline USB (LABEL=$LABEL)"
 mount_usb
 
@@ -257,28 +188,29 @@ if [[ ! -d "$USB_MNT/BaseOS" || ! -d "$USB_MNT/AppStream" ]]; then
   exit 1
 fi
 
-# Temporarily use USB for dnf so we can install rsync if missing before copy
-log "Configuring temporary USB-based dnf repos for bootstrap"
+# EARLIEST possible: install all target scripts + docs from USB (before long rsync)
+log "Installing air-gap helpers and docs from USB (early)"
+install_helpers_from "$USB_MNT"
+
+# Temporarily use USB for dnf only if we need rsync for the copy
+log "Configuring temporary USB-based dnf repos for bootstrap (rsync only if missing)"
 write_repo_file "$USB_MNT" "$REPO_FILE_USB" "offline-usb"
 disable_cdn_repos
-# re-enable our usb repo if disable_cdn moved it
 write_repo_file "$USB_MNT" "$REPO_FILE_USB" "offline-usb"
 dnf clean all >/dev/null 2>&1 || true
 
-# Ensure rsync exists for efficient copy (pull from USB BaseOS if needed)
 if ! command -v rsync >/dev/null 2>&1; then
-  log "Installing rsync from USB media"
+  log "Installing rsync from USB media (bootstrap)"
   dnf -y --disablerepo='*' --enablerepo='offline-usb-*' install rsync
 fi
 
 log "Copying offline repo mirror USB -> local disk (${LOCAL_REPO_ROOT})"
-echo "    This can take a while (~30GB+)."
+echo "    This can take a while (~30GB+). Package installs start AFTER USB is unmounted."
 mkdir -p "$LOCAL_REPO_ROOT"
 
 if [[ "$SKIP_REPO_COPY" == "1" ]] && local_mirror_ok; then
   log "SKIP_REPO_COPY=1 and local mirror looks present — not re-copying"
 else
-  # Full tree copy: RPM repos, EPEL, wheels, docs, package lists, scripts
   rsync -aH --info=progress2 \
     --exclude='lost+found' \
     "$USB_MNT"/ "$LOCAL_REPO_ROOT"/
@@ -293,16 +225,61 @@ fi
 log "Local mirror size:"
 du -sh "$LOCAL_REPO_ROOT" "$LOCAL_REPO_ROOT"/* 2>/dev/null | head -20
 
+# Re-install helpers from local mirror (authoritative post-copy; single installer)
+log "Re-installing helpers/docs from local mirror"
+install_helpers_from "$LOCAL_REPO_ROOT"
+
 log "Configuring permanent dnf sources -> file://${LOCAL_REPO_ROOT}/..."
-# Remove USB-only repo file; use local only
 rm -f "$REPO_FILE_USB"
-write_repo_file "$LOCAL_REPO_ROOT" "$REPO_FILE_LOCAL" "offline-local"
-disable_cdn_repos
-# ensure local repo file still present after disable pass
-write_repo_file "$LOCAL_REPO_ROOT" "$REPO_FILE_LOCAL" "offline-local"
-install_local_helpers
-/usr/local/sbin/enable-offline-repos.sh
+export LOCAL_REPO_ROOT
+if [[ -x /usr/local/sbin/enable-offline-repos.sh ]]; then
+  /usr/local/sbin/enable-offline-repos.sh
+else
+  write_repo_file "$LOCAL_REPO_ROOT" "$REPO_FILE_LOCAL" "offline-local"
+  disable_cdn_repos
+  write_repo_file "$LOCAL_REPO_ROOT" "$REPO_FILE_LOCAL" "offline-local"
+fi
 dnf clean all >/dev/null 2>&1 || true
+
+# Sync and release the USB so it can be unplugged before package install
+sync
+if [[ "$SKIP_USB_UNMOUNT" != "1" ]]; then
+  log "Unmounting USB media at $USB_MNT"
+  if findmnt "$USB_MNT" >/dev/null 2>&1; then
+    umount "$USB_MNT" 2>/dev/null || umount -l "$USB_MNT" 2>/dev/null || true
+  fi
+  # Also drop any bind mounts under the same path
+  while findmnt "$USB_MNT" >/dev/null 2>&1; do
+    umount "$USB_MNT" 2>/dev/null || umount -l "$USB_MNT" 2>/dev/null || break
+  done
+  echo
+  echo "############################################################"
+  echo "# USB is unmounted and may be REMOVED now.                 #"
+  echo "# Local mirror: ${LOCAL_REPO_ROOT}                         #"
+  echo "# dnf repos:    ${REPO_FILE_LOCAL}                         #"
+  echo "# Starting package installation from local disk next...    #"
+  echo "############################################################"
+  echo
+  sleep 2
+else
+  log "SKIP_USB_UNMOUNT=1 — leaving USB mounted at $USB_MNT"
+fi
+
+# Verify we are NOT depending on USB paths for dnf
+if grep -q "file://${USB_MNT}" /etc/yum.repos.d/*.repo 2>/dev/null; then
+  echo "ERROR: A yum repo still points at USB mount $USB_MNT" >&2
+  grep -n "file://${USB_MNT}" /etc/yum.repos.d/*.repo || true
+  exit 1
+fi
+if ! grep -q "file://${LOCAL_REPO_ROOT}/BaseOS" "$REPO_FILE_LOCAL" 2>/dev/null; then
+  echo "ERROR: offline-local.repo does not point at local BaseOS" >&2
+  exit 1
+fi
+
+echo
+echo "############################################################"
+echo "# Phase B: install packages from local disk (USB optional) #"
+echo "############################################################"
 
 log "Applying upgrades from LOCAL offline mirror"
 dnf -y --disablerepo='*' --enablerepo='offline-local-*' upgrade || true
@@ -356,36 +333,19 @@ dnf -y --disablerepo='*' --enablerepo='offline-local-*' groupinstall "Server wit
   dnf -y --disablerepo='*' --enablerepo='offline-local-*' install @graphical-server-environment
 systemctl set-default graphical.target || true
 
-# Document location for operators
-cat > /root/README-OFFLINE-REPOS.txt <<EOF
-Air-gapped package mirror (local disk)
-======================================
-Location:  ${LOCAL_REPO_ROOT}
-Repos file: ${REPO_FILE_LOCAL}
+# Final helper/doc refresh from local mirror (keeps /root/README.md + sbin in sync)
+log "Final helpers/docs refresh from local mirror"
+install_helpers_from "$LOCAL_REPO_ROOT"
+export LOCAL_REPO_ROOT
+[[ -x /usr/local/sbin/enable-offline-repos.sh ]] && /usr/local/sbin/enable-offline-repos.sh || true
 
-After this post-install, the USB is NOT required for dnf install/upgrade.
-
-Commands:
-  sudo offline-repo-status.sh
-  sudo enable-offline-repos.sh
-  sudo dnf install <package>
-  sudo dnf upgrade
-
-Python wheels:
-  ${LOCAL_REPO_ROOT}/python-wheels
-  python3.11 -m pip install --no-index --find-links=${LOCAL_REPO_ROOT}/python-wheels -r ${LOCAL_REPO_ROOT}/python-wheels/requirements.txt
-
-Docs (if copied):
-  ${LOCAL_REPO_ROOT}/docs/OFFLINE-INSTALL.md
-  ${LOCAL_REPO_ROOT}/OFFLINE-INSTALL.md
-EOF
-
-log "Post-install complete."
+log "Post-install complete (packages installed from local disk)."
 echo "  Local mirror:  $LOCAL_REPO_ROOT  ($(du -sh "$LOCAL_REPO_ROOT" | awk '{print $1}'))"
 echo "  dnf repos:     $REPO_FILE_LOCAL  (file:// local disk)"
+echo "  Root guide:    /root/README.md"
+echo "  Docs:          /usr/local/share/airgap/docs/  and  /root/airgap-docs/"
 echo "  Status:        sudo offline-repo-status.sh"
-echo "  Re-enable:     sudo enable-offline-repos.sh"
-echo "  USB may now be removed."
+echo "  USB:           already unmounted (unless SKIP_USB_UNMOUNT=1)"
 rpm -qa | wc -l | xargs -I{} echo "  Installed RPMs: {}"
 systemctl is-active sshd 2>/dev/null | xargs -I{} echo "  sshd: {}" || true
 python3.11 -m pip show pipx 2>/dev/null | head -2 || true
