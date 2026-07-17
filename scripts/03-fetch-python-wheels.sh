@@ -98,8 +98,14 @@ build_download_args() {
   if [[ -n "${PYTHON_DOWNLOAD_PLATFORM:-}" ]]; then
     _out+=(--platform "${PYTHON_DOWNLOAD_PLATFORM}")
     _out+=(--implementation cp)
-    # For pure py3-none-any use abi=none; for cp311 manylinux set PYTHON_DOWNLOAD_ABI=cp311
-    _out+=(--abi "${PYTHON_DOWNLOAD_ABI:-none}")
+    # Binary wheels need cp311 (etc.), not abi=none (that only fits pure py3-none-any)
+    if [[ -n "${PYTHON_DOWNLOAD_ABI:-}" ]]; then
+      _out+=(--abi "${PYTHON_DOWNLOAD_ABI}")
+    elif [[ -n "${TARGET_PY}" ]]; then
+      _out+=(--abi "cp${TARGET_PY}")
+    else
+      _out+=(--abi none)
+    fi
   fi
 }
 
@@ -176,31 +182,125 @@ fi
   find "$WHEEL_DIR" -maxdepth 1 -type f \( -name '*.whl' -o -name '*.tar.gz' \) -printf '%f\n' | sort
 } > "$WHEEL_DIR/WHEEL-INVENTORY.txt"
 
+# Pick a Python that matches TARGET_PY tags (e.g. 311 -> python3.11).
+# Returns empty if no matching interpreter is installed (do not fall back to host
+# python3 — that produces noisy false "No matching distribution" errors for cp311 wheels).
+resolve_verify_python() {
+  local major minor cand
+  if [[ "${TARGET_PY}" =~ ^([0-9])([0-9]+)$ ]]; then
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+    for cand in "python${major}.${minor}" "python${major}${minor}"; do
+      if command -v "$cand" >/dev/null 2>&1; then
+        echo "$cand"
+        return 0
+      fi
+    done
+  fi
+  if [[ -z "${TARGET_PY}" ]] && command -v python3 >/dev/null 2>&1; then
+    echo "python3"
+    return 0
+  fi
+  return 1
+}
+
+# Heuristic: every requirement name has at least one matching wheel/sdist in WHEEL_DIR
+inventory_covers_requirements() {
+  local req name alt ok=0 miss=0
+  while IFS= read -r req || [[ -n "$req" ]]; do
+    req="${req%%#*}"
+    req="${req#"${req%%[![:space:]]*}"}"
+    req="${req%"${req##*[![:space:]]}"}"
+    [[ -z "$req" ]] && continue
+    # strip extras and version: "numpy==1.26", "foo[bar]>=1", "pkg~=1.0"
+    name="${req%%[*}"          # drop [extras]
+    name="${name%%=*}"
+    name="${name%%<*}"
+    name="${name%%>*}"
+    name="${name%%!*}"
+    name="${name%%~*}"
+    name="$(echo "$name" | tr '[:upper:]' '[:lower:]')"
+    alt="${name//-/_}"
+    if find "$WHEEL_DIR" -maxdepth 1 -type f \( \
+         -iname "${name}-*.whl" -o -iname "${name}-*.tar.gz" -o \
+         -iname "${alt}-*.whl" -o -iname "${alt}-*.tar.gz" \
+       \) 2>/dev/null | grep -q .; then
+      echo "  OK inventory: $name"
+      ok=$((ok + 1))
+    else
+      echo "  MISSING wheel/sdist for requirement: $req (name=$name)" >&2
+      miss=$((miss + 1))
+    fi
+  done < "$WHEEL_DIR/requirements.txt"
+  [[ "$miss" -eq 0 && "$ok" -gt 0 ]]
+}
+
 verify_offline() {
   echo
   echo "==> Verifying offline install would succeed (no network)"
-  # Always use a throwaway venv so PEP 668 (externally-managed-environment) cannot
-  # block verification on Debian/Ubuntu build hosts.
-  local venv
+  echo "    TARGET_PY=${TARGET_PY:-host} (wheels tagged for that ABI, e.g. cp311)"
+
+  local py_verify="" venv dry_st v_st
+  if py_verify="$(resolve_verify_python)"; then
+    echo "    verify interpreter: $py_verify"
+  else
+    # Do NOT dry-run under host python3.12 when TARGET_PY=311 — pip prints red
+    # "No matching distribution found for numpy" even when the cp311 wheel is present.
+    echo "    no python matching TARGET_PY=${TARGET_PY} on build host"
+    echo "    skipping pip dry-run (avoids false errors for cp${TARGET_PY} wheels)"
+    echo "    optional: sudo apt install python${TARGET_PY:0:1}.${TARGET_PY:1} python${TARGET_PY:0:1}.${TARGET_PY:1}-venv"
+    if inventory_covers_requirements; then
+      echo "OK: inventory covers all requirements.txt names"
+      return 0
+    fi
+    echo "ERROR: offline verification failed — missing wheels for some requirements" >&2
+    return 1
+  fi
+
+  if ! "$py_verify" -c 'import venv' 2>/dev/null; then
+    echo "WARN: $py_verify cannot create venv; inventory coverage check only"
+    if inventory_covers_requirements; then
+      echo "OK: inventory covers all requirements.txt names (no venv verify)"
+      return 0
+    fi
+    echo "ERROR: offline verification failed — missing wheels for some requirements" >&2
+    return 1
+  fi
+
+  # Throwaway venv avoids PEP 668 on Debian/Ubuntu build hosts
   venv=$(mktemp -d /tmp/pywheel-verify.XXXXXX)
-  python3 -m venv "$venv"
-  set +e
-  # dry-run first when supported
-  "$venv/bin/pip" install --no-index --find-links="$WHEEL_DIR" \
-    -r "$WHEEL_DIR/requirements.txt" --dry-run 2>&1
-  local dry_st=$?
-  if [[ $dry_st -eq 0 ]]; then
-    echo "OK: pip install --dry-run --no-index in venv succeeded (deps complete)"
+  if ! "$py_verify" -m venv "$venv" 2>/dev/null; then
+    echo "WARN: $py_verify -m venv failed; inventory coverage check only"
     rm -rf "$venv"
+    if inventory_covers_requirements; then
+      echo "OK: inventory covers all requirements.txt names"
+      return 0
+    fi
+    return 1
+  fi
+
+  set +e
+  # Quiet pip unless it fails (still show failure output)
+  if "$venv/bin/pip" install --no-index --find-links="$WHEEL_DIR" \
+      -r "$WHEEL_DIR/requirements.txt" --dry-run >/tmp/pywheel-dryrun.out 2>&1; then
+    dry_st=0
+  else
+    dry_st=$?
+  fi
+  if [[ $dry_st -eq 0 ]]; then
+    echo "OK: pip install --dry-run --no-index in $py_verify venv succeeded (deps complete)"
+    rm -rf "$venv" /tmp/pywheel-dryrun.out
     set -e
     return 0
   fi
-  echo "NOTE: dry-run failed or unsupported; doing full offline venv install"
-  "$venv/bin/pip" install --no-index --find-links="$WHEEL_DIR" pip setuptools wheel 2>/dev/null
+
+  echo "NOTE: dry-run failed; trying full offline venv install"
+  cat /tmp/pywheel-dryrun.out 2>/dev/null || true
+  "$venv/bin/pip" install --no-index --find-links="$WHEEL_DIR" pip setuptools wheel >/dev/null 2>&1
   "$venv/bin/pip" install --no-index --find-links="$WHEEL_DIR" -r "$WHEEL_DIR/requirements.txt"
-  local v_st=$?
+  v_st=$?
   set -e
-  rm -rf "$venv"
+  rm -rf "$venv" /tmp/pywheel-dryrun.out
   if [[ $v_st -eq 0 ]]; then
     echo "OK: offline venv install succeeded (full dependency closure present)"
     return 0
