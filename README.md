@@ -157,7 +157,7 @@ See also `docs/USB-PREPARE-REVIEW.md`.
 3. **Offline RHEL tree** is a full newest-only (`dnf reposync -n`) mirror of BaseOS + AppStream + CRB — primary security-update channel on the stick.
 4. **Offline EPEL tree** is a **required** targeted RPM set (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …) via `packages/epel-extra.txt`.
 5. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/03-fetch-python-wheels.sh`.
-6. **`scripts/post-install-extra.sh`** installs RPMs from offline dnf repos, then installs wheels with `python3.11 -m pip --no-index --find-links=…`.
+6. **Target first setup (two scripts):** `copy-offline-mirror-from-usb.sh` (USB→disk), then after unplug `install-from-local-mirror.sh` (dnf/wheels/GUI from local mirror).
 
 Package name notes: `docs/PACKAGE-NOTES.md`.
 
@@ -243,7 +243,8 @@ rhel-installer/
 │   ├── authorize-offline-usb.sh       # STIG: stop usbguard, allow HID/storage
 │   ├── update-target-repo-from-usb.sh # on target: USB → /var/lib/offline-repos
 │   ├── status-reposync.sh
-│   └── post-install-extra.sh          # first-time target setup + local mirror
+│   ├── copy-offline-mirror-from-usb.sh  # step 1: USB → local mirror
+│   └── install-from-local-mirror.sh     # step 2: packages from local disk
 └── out/                        # offline-repo (BaseOS/AppStream/CRB/EPEL/python-wheels), ISO, logs
 ```
 

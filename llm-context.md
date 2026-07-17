@@ -15,7 +15,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 | Topic | Decision |
 |-------|----------|
 | Partitioning | Interactive Anaconda (no clearpart by default) |
-| Post-install packages | Two-phase: **A** rsync USB→`/var/lib/offline-repos` + dnf local repos + **unmount USB**; **B** long dnf/GUI/wheels from disk only |
+| Post-install packages | **Two scripts** (not one): `copy-offline-mirror-from-usb.sh` (USB→local, helpers, dnf local) then user umount/unplug then `install-from-local-mirror.sh` (long dnf/GUI/wheels). Never unmount mid-script while still executing from USB. |
 | EPEL | Targeted fetch (`epel-extra.txt`), not full EPEL mirror (~150MB) |
 | pipx | **No** RHEL/EPEL8 RPM; offline **wheels** via `python3.11 -m pip --no-index` |
 | ntp | Use **chrony**, not `ntpdate` (missing offline) |
@@ -55,7 +55,8 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 scripts/01–08*.sh          build host
 scripts/target-scripts.list
 scripts/install-airgap-helpers.sh
-scripts/post-install-extra.sh
+scripts/copy-offline-mirror-from-usb.sh
+scripts/install-from-local-mirror.sh
 scripts/authorize-offline-usb.sh
 scripts/configure-grub-timeout.sh
 scripts/update-target-repo-from-usb.sh
@@ -68,15 +69,16 @@ out/offline-repo/          staged mirror + scripts/docs/packages
 
 1. Kickstart embeds helpers + `/root/README.md` (pre-USB)
 2. Mount media → `install-airgap-helpers.sh`
-3. `post-install-extra`: helpers again **before** rsync; again after local mirror; final refresh end of Phase B
-4. GRUB timeout applied kickstart + end of post-install
+3. `copy-offline-mirror-from-usb`: helpers before rsync; again after local mirror; **stop** for user umount
+4. `install-from-local-mirror`: packages from local only; GRUB timeout; refuse if script path is still on USB
+5. GRUB timeout also applied in kickstart
 
 ## Gaps / resume work
 
 - Re-test full install after GRUB + early-helper embed changes (`06-inject` + `08-update-usb --all` or re-`07`).
 - Existing installed systems: run `configure-grub-timeout.sh` + `install-airgap-helpers.sh` from USB if media updated.
 - `config.env` may lack `KS_GRUB_TIMEOUT` (05 defaults to 5).
-- Keep package lists in sync: `packages/*.txt` vs hard-coded dnf lists in `post-install-extra.sh` / `%post` package list from 05.
+- Keep package lists in sync: `packages/*.txt` vs hard-coded dnf lists in `install-from-local-mirror.sh` / `%post` package list from 05.
 - Do not put exploit/malware tooling here; offline media is STIG-oriented air-gap ops only.
 
 ## Doc map

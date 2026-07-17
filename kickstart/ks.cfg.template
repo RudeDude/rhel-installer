@@ -212,7 +212,8 @@ if [ -x "$MNT/scripts/install-airgap-helpers.sh" ]; then
   bash "$MNT/scripts/install-airgap-helpers.sh" "$MNT" || true
 elif [ -d "$MNT/scripts" ]; then
   for s in authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh \
-           offline-repo-status.sh configure-grub-timeout.sh post-install-extra.sh \
+           offline-repo-status.sh configure-grub-timeout.sh \
+           copy-offline-mirror-from-usb.sh install-from-local-mirror.sh \
            update-target-repo-from-usb.sh install-airgap-helpers.sh; do
     [ -f "$MNT/scripts/$s" ] && cp -a "$MNT/scripts/$s" /usr/local/sbin/ && chmod 755 /usr/local/sbin/$s
   done
@@ -239,8 +240,8 @@ cat > /root/README-OFFLINE-REPOS.txt <<EOF
 Full guide: /root/README.md
 USB label: $REPO_LABEL
 Local mirror (after post-install): $LOCAL_DEFAULT
-Helpers: authorize-offline-usb | mount-offline-usb | enable-offline-repos |
-         offline-repo-status | post-install-extra | update-target-repo-from-usb
+Helpers: authorize | mount | enable-offline-repos | offline-repo-status |
+         copy-offline-mirror-from-usb | install-from-local-mirror | update-target
 Install mode: __KS_INSTALL_MODE__
 EOF
 
@@ -248,11 +249,11 @@ mkdir -p /etc/motd.d
 cat > /etc/motd.d/99-airgap <<'EOF'
 Air-gapped RHEL — read /root/README.md
 USB?  sudo authorize-offline-usb.sh
-First setup: sudo mount-offline-usb.sh && sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
+Setup: copy-offline-mirror-from-usb.sh → umount USB → install-from-local-mirror.sh
 EOF
 rm -f /etc/motd.d/99-offline-repos 2>/dev/null || true
 
-# Optional early package pass from USB if mounted (best-effort; full setup is post-install-extra)
+# Optional early package pass from USB if mounted (best-effort; full setup is two-step post-install)
 if [ -d "$MNT/BaseOS" ] || [ -d "$MNT/AppStream" ]; then
   sed -i 's/^enabled=.*/enabled=1/' /etc/yum.repos.d/offline-usb.repo 2>/dev/null || true
   subscription-manager repos --disable='*' >/dev/null 2>&1 || true

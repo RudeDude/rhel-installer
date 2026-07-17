@@ -37,41 +37,44 @@ sudo mount-offline-usb.sh
 # equivalent: sudo mkdir -p /mnt/rhel8offline && sudo mount -L RHEL8OFFLINE /mnt/rhel8offline
 ```
 
-### Run the post-install package pass (required)
+### Run first-time setup (two scripts — required)
+
+**Step 1 — USB inserted** (run from the stick; copies only):
 
 ```bash
-sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
+sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+sudo umount /mnt/rhel8offline
+# unplug USB
 ```
 
-(`post-install-extra.sh` runs USB authorization, then **installs all helpers/docs from USB immediately**, before the long rsync.)
+That script: authorize/mount helpers as needed, install helpers/docs early, rsync
+mirror to **`/var/lib/offline-repos/`**, configure `offline-local.repo`, install
+helpers again from the **local** copy. It does **not** unmount for you and does
+**not** install packages (so removing the USB cannot kill a running install script).
 
-That script runs in two phases:
+**Step 2 — USB removed** (run from local disk):
 
-**Phase A (USB required — copy only)**  
-1. Mount the USB offline partition  
-2. **Install helpers + docs early** (`install-airgap-helpers.sh`)  
-3. **Copy the full repo mirror** to local disk: **`/var/lib/offline-repos/`**  
-4. **Configure permanent dnf sources** (`enable-offline-repos.sh` → `offline-local.repo`)  
-5. **Unmount the USB** and print a clear “you may remove the stick now” banner  
+```bash
+sudo install-from-local-mirror.sh
+# or: sudo /usr/local/sbin/install-from-local-mirror.sh
+# or: sudo bash /var/lib/offline-repos/scripts/install-from-local-mirror.sh
+```
 
-**Phase B (USB not required — long installs)**  
-6. `dnf upgrade` + package installs + EPEL + pipx wheels + Server with GUI  
-   all from **local disk only**  
+`dnf upgrade` + packages + EPEL + pipx wheels + Server with GUI from **local disk only**.
 
-You can **unplug the USB as soon as Phase A finishes** (before the long package install / reboot). Future `dnf` continues to use the local mirror.
-
-Optional env vars for the script:
+Optional env vars:
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `LOCAL_REPO_ROOT` | `/var/lib/offline-repos` | Where to store the mirror |
-| `USB_REPO_LABEL` | `RHEL8OFFLINE` | USB filesystem label |
-| `SKIP_REPO_COPY=1` | off | Skip re-copy if local mirror already looks complete |
+| `LOCAL_REPO_ROOT` | `/var/lib/offline-repos` | Where to store / read the mirror |
+| `USB_REPO_LABEL` | `RHEL8OFFLINE` | USB filesystem label (step 1) |
+| `SKIP_REPO_COPY=1` | off | Step 1: skip rsync if local mirror looks complete |
 
 Example:
 
 ```bash
-sudo LOCAL_REPO_ROOT=/data/offline-repos bash /mnt/rhel8offline/scripts/post-install-extra.sh
+sudo LOCAL_REPO_ROOT=/data/offline-repos bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+sudo LOCAL_REPO_ROOT=/data/offline-repos install-from-local-mirror.sh
 ```
 
 ---
@@ -109,7 +112,7 @@ python3.11 -m pip install --no-index \
   -r /var/lib/offline-repos/python-wheels/requirements.txt
 ```
 
-(Already done by post-install-extra.sh for packages listed in `python-wheels/requirements.txt`.)
+(Already done by install-from-local-mirror.sh for packages listed in `python-wheels/requirements.txt`.)
 
 ---
 

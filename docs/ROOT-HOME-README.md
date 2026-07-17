@@ -4,7 +4,7 @@ This file is installed as **`/root/README.md`** on the target system as early as
 
 1. **Kickstart `%post`** — embedded copy (works even before USB is mounted)
 2. **Media install** — `install-airgap-helpers.sh` from USB / local mirror
-3. **`post-install-extra.sh`** — refreshed again after the mirror is copied to disk
+3. **`copy-offline-mirror-from-usb.sh` / `install-from-local-mirror.sh`** — two-step first setup
 
 Full copies of all air-gap documentation also live under:
 
@@ -31,18 +31,28 @@ sudo authorize-offline-usb.sh
 # Stops/disables USBGuard, authorizes USB, loads usbhid + usb_storage + uas
 ```
 
-### 2. First-time setup (USB inserted) — copy mirror, then remove USB
+### 2. First-time setup — two scripts (do not run packages from the USB)
+
+USB still inserted:
 
 ```bash
 sudo authorize-offline-usb.sh          # if needed
-sudo mount-offline-usb.sh              # or: mount -L RHEL8OFFLINE /mnt/rhel8offline
-sudo bash /mnt/rhel8offline/scripts/post-install-extra.sh
+sudo mount-offline-usb.sh
+sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+sudo umount /mnt/rhel8offline
+# unplug the USB stick
 ```
 
-**Phase A** copies repos to `/var/lib/offline-repos`, installs helpers/docs, configures dnf, **unmounts USB**  
-→ you may **unplug the USB** when the banner says so.
+Then from **local disk only** (long installs):
 
-**Phase B** installs packages from **local disk only** (long; reboot afterward if needed).
+```bash
+sudo install-from-local-mirror.sh
+# or: sudo /usr/local/sbin/install-from-local-mirror.sh
+# or: sudo bash /var/lib/offline-repos/scripts/install-from-local-mirror.sh
+```
+
+Step 1 copies repos to `/var/lib/offline-repos`, installs helpers/docs, configures dnf.  
+Step 2 must not run from the USB path (script would vanish mid-install).
 
 ### 3. Day-to-day package management (no USB)
 
@@ -115,7 +125,8 @@ All under **`/usr/local/sbin/`** (on `PATH` for root). Also kept under
 | `enable-offline-repos.sh` | Point dnf at **local** mirror (or USB if no local yet) |
 | `offline-repo-status.sh` | Show mirror paths/sizes + helper/doc presence |
 | `update-target-repo-from-usb.sh` | Incremental USB → local mirror sync + helper refresh |
-| `post-install-extra.sh` | First-time full setup (also on USB under `scripts/`) |
+| `copy-offline-mirror-from-usb.sh` | Step 1: USB → local mirror + helpers (run from USB) |
+| `install-from-local-mirror.sh` | Step 2: dnf/GUI/wheels from local disk only |
 | `install-airgap-helpers.sh` | Re-install helpers/docs from a media path |
 | `configure-grub-timeout.sh` | Fix GRUB menu waiting forever (STIG `timeout=-1`) |
 

@@ -2,7 +2,7 @@
 
 There are two different problems people mix up:
 
-1. **Remember to install the package** on the air-gapped machine (kickstart `%post` / `post-install-extra.sh`)
+1. **Remember to install the package** on the air-gapped machine (kickstart `%post` / `install-from-local-mirror.sh`)
 2. **Have the RPM (and deps) on the USB** so offline `dnf install` can succeed
 
 For packages already in your mirrored **BaseOS / AppStream / CRB** trees, (2) is already done.  
@@ -26,7 +26,7 @@ No re-download of the whole repo is required.
 1. Append the **real RPM name** to a list file:
    - `packages/required.txt` — always installed in generated kickstart `%post` / intended baseline
    - `packages/recommended.txt` — when `INCLUDE_RECOMMENDED=yes` in `config.env`
-2. Optionally mirror the same names in `scripts/post-install-extra.sh` (first-boot helper).
+2. Optionally mirror the same names in `scripts/install-from-local-mirror.sh` (first-boot helper).
 3. Rebuild kickstart (and ISO if you inject it):
 
    ```bash
@@ -117,7 +117,7 @@ dnf info rsync openssh-server
      -r /mnt/rhel8offline/python-wheels/requirements.txt
    ```
 
-   `post-install-extra.sh` does this automatically when `python-wheels/` is on the media.
+   `install-from-local-mirror.sh` does this automatically when `python-wheels/` is on the media.
 
 > Compiled extensions need manylinux wheels matching the target; pure-Python packages (like pipx) stage cleanly as `py3-none-any.whl`.
 
@@ -202,4 +202,5 @@ sudo dnf install --assumeno htop   # shows the transaction; look for "No match" 
 | `scripts/05-generate-kickstart.sh` | Builds `out/ks.cfg` |
 | `scripts/06-inject-kickstart.sh` | Custom boot ISO |
 | `scripts/07-prepare-usb.sh` | Writes USB; copies **all** offline content + docs |
-| `scripts/post-install-extra.sh` | Runs on air-gapped host from the USB |
+| `scripts/copy-offline-mirror-from-usb.sh` | Step 1: USB → local mirror |
+| `scripts/install-from-local-mirror.sh` | Step 2: packages from local disk |
