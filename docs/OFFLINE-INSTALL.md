@@ -192,3 +192,5 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator ind
 | htop missing | EPEL tree must exist under local mirror |
 | pipx missing | `python-wheels/` under local mirror; use python3.11 |
 | Disk full on copy | Need ~35GB+ free on `/` (or set `LOCAL_REPO_ROOT` to a larger filesystem) |
+| GRUB kernel menu never times out | STIG often sets `GRUB_TIMEOUT=-1`. Run `sudo configure-grub-timeout.sh` then reboot |
+

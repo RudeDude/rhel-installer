@@ -233,8 +233,8 @@ if [[ "$DO_REPOS" -eq 1 ]]; then
       "$ROOT/scripts/target-scripts.list")
   else
     _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
-         offline-repo-status.sh install-airgap-helpers.sh post-install-extra.sh
-         update-target-repo-from-usb.sh)
+         offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
+         post-install-extra.sh update-target-repo-from-usb.sh)
   fi
   for s in "${_ts[@]}"; do
     [[ -f "$ROOT/scripts/$s" ]] && cp -a "$ROOT/scripts/$s" "$MNT/scripts/" && chmod 755 "$MNT/scripts/$s"

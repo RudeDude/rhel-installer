@@ -144,6 +144,13 @@ __EMBED_STATUS_SCRIPT__
 __AIRGAP_STATUS_EOF__
 chmod 755 /usr/local/sbin/offline-repo-status.sh
 
+# STIG images often set GRUB_TIMEOUT=-1 (menu waits forever) — fix early
+cat > /usr/local/sbin/configure-grub-timeout.sh <<'__AIRGAP_GRUB_EOF__'
+__EMBED_GRUB_TIMEOUT_SCRIPT__
+__AIRGAP_GRUB_EOF__
+chmod 755 /usr/local/sbin/configure-grub-timeout.sh
+GRUB_TIMEOUT=__KS_GRUB_TIMEOUT__ /usr/local/sbin/configure-grub-timeout.sh __KS_GRUB_TIMEOUT__ || true
+
 cat > /etc/yum.repos.d/offline-usb.repo <<EOF
 [offline-usb-baseos]
 name=Offline BaseOS (USB $REPO_LABEL)
@@ -205,8 +212,8 @@ if [ -x "$MNT/scripts/install-airgap-helpers.sh" ]; then
   bash "$MNT/scripts/install-airgap-helpers.sh" "$MNT" || true
 elif [ -d "$MNT/scripts" ]; then
   for s in authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh \
-           offline-repo-status.sh post-install-extra.sh update-target-repo-from-usb.sh \
-           install-airgap-helpers.sh; do
+           offline-repo-status.sh configure-grub-timeout.sh post-install-extra.sh \
+           update-target-repo-from-usb.sh install-airgap-helpers.sh; do
     [ -f "$MNT/scripts/$s" ] && cp -a "$MNT/scripts/$s" /usr/local/sbin/ && chmod 755 /usr/local/sbin/$s
   done
   mkdir -p /usr/local/share/airgap/docs /root/airgap-docs
@@ -260,5 +267,10 @@ if [ -d "$MNT/BaseOS" ] || [ -d "$MNT/AppStream" ]; then
   fi
 else
   echo "WARNING: offline media not mounted in %post; helpers/docs may be incomplete until USB is used" >> /root/ks-post.log
+fi
+
+# Re-apply GRUB timeout after any package/kernel work (STIG defaults may return)
+if [ -x /usr/local/sbin/configure-grub-timeout.sh ]; then
+  GRUB_TIMEOUT=__KS_GRUB_TIMEOUT__ /usr/local/sbin/configure-grub-timeout.sh __KS_GRUB_TIMEOUT__ || true
 fi
 %end

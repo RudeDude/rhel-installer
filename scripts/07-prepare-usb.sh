@@ -551,8 +551,8 @@ do_write() {
       "$ROOT/scripts/target-scripts.list")
   else
     _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
-         offline-repo-status.sh install-airgap-helpers.sh post-install-extra.sh
-         update-target-repo-from-usb.sh)
+         offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
+         post-install-extra.sh update-target-repo-from-usb.sh)
   fi
   for s in "${_ts[@]}"; do
     if [[ -f "$ROOT/scripts/$s" ]]; then

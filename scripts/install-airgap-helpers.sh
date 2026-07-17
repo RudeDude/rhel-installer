@@ -43,6 +43,7 @@ if [[ ${#HELPERS[@]} -eq 0 ]]; then
     mount-offline-usb.sh
     enable-offline-repos.sh
     offline-repo-status.sh
+    configure-grub-timeout.sh
     install-airgap-helpers.sh
     post-install-extra.sh
     update-target-repo-from-usb.sh

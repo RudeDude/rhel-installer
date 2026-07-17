@@ -81,7 +81,17 @@ sudo update-target-repo-from-usb.sh    # refreshes mirror + helpers + docs
 sudo dnf upgrade
 ```
 
-### 5. Python / pipx (offline wheels)
+### 5. GRUB menu waits forever (no auto timeout)
+
+Hardened / STIG images often set `GRUB_TIMEOUT=-1`. Fix (already applied by kickstart / post-install):
+
+```bash
+sudo configure-grub-timeout.sh        # default 5 seconds
+# or:  sudo configure-grub-timeout.sh 10
+sudo reboot
+```
+
+### 6. Python / pipx (offline wheels)
 
 ```bash
 python3.11 -m pip install --no-index \
@@ -107,6 +117,7 @@ All under **`/usr/local/sbin/`** (on `PATH` for root). Also kept under
 | `update-target-repo-from-usb.sh` | Incremental USB → local mirror sync + helper refresh |
 | `post-install-extra.sh` | First-time full setup (also on USB under `scripts/`) |
 | `install-airgap-helpers.sh` | Re-install helpers/docs from a media path |
+| `configure-grub-timeout.sh` | Fix GRUB menu waiting forever (STIG `timeout=-1`) |
 
 ---
 
@@ -176,6 +187,7 @@ Also on USB root: `OFFLINE-INSTALL.md`, `README-ON-MEDIA.txt`.
 | Missing pipx | Need `python-wheels/` + python3.11 |
 | Disk full during copy | Free ~35GB+ or `LOCAL_REPO_ROOT=/big/fs` |
 | Helpers/docs missing | `sudo install-airgap-helpers.sh /var/lib/offline-repos` (or USB path) |
+| GRUB kernel menu never auto-boots | STIG often sets `GRUB_TIMEOUT=-1`. Run: `sudo configure-grub-timeout.sh` (default 5s), then reboot |
 
 ---
 

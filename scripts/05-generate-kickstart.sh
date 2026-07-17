@@ -33,6 +33,8 @@ mkdir -p "$OUT_DIR"
 : "${KS_INSTALL_MODE:=liveimg}"
 : "${KS_WANT_GUI:=yes}"
 : "${KS_ENV_GROUP:=graphical-server-environment}"
+# STIG images often use GRUB_TIMEOUT=-1 (wait forever); default to 5s auto-boot
+: "${KS_GRUB_TIMEOUT:=5}"
 
 if [[ -z "${KS_ROOT_PASSWORD_HASH:-}" || "$KS_ROOT_PASSWORD_HASH" == *REPLACE* ]]; then
   echo "ERROR: Set KS_ROOT_PASSWORD_HASH in config.env" >&2
@@ -138,6 +140,7 @@ replace "__KS_INSTALL_SOURCE_BLOCK__" "$KS_INSTALL_SOURCE_BLOCK" "$KS_OUT"
 replace "__KS_PACKAGES_BLOCK__" "$KS_PACKAGES_BLOCK" "$KS_OUT"
 replace "__KS_ENABLE_FIPS__" "$KS_ENABLE_FIPS" "$KS_OUT"
 replace "__KS_WANT_GUI__" "$KS_WANT_GUI" "$KS_OUT"
+replace "__KS_GRUB_TIMEOUT__" "$KS_GRUB_TIMEOUT" "$KS_OUT"
 replace "__KS_POST_PACKAGE_LIST__" "$POST_PKG_LIST" "$KS_OUT"
 replace "__PACKAGE_PLACEHOLDER__" "$PKG_NL" "$KS_OUT"
 
@@ -162,6 +165,9 @@ echo 'enable-offline-repos.sh missing at image build time' >&2"
 embed_or_stub "__EMBED_STATUS_SCRIPT__" "$ROOT/scripts/offline-repo-status.sh" \
   "#!/bin/bash
 echo 'offline-repo-status.sh missing at image build time' >&2"
+embed_or_stub "__EMBED_GRUB_TIMEOUT_SCRIPT__" "$ROOT/scripts/configure-grub-timeout.sh" \
+  "#!/bin/bash
+echo 'configure-grub-timeout.sh missing at image build time' >&2"
 embed_or_stub "__EMBED_ROOT_README__" "$ROOT/docs/ROOT-HOME-README.md" \
   "# See docs/OFFLINE-INSTALL.md on the USB media"
 
@@ -179,8 +185,8 @@ if [[ -f "$ROOT/scripts/target-scripts.list" ]]; then
 else
   TARGET_SCRIPTS=(
     authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
-    offline-repo-status.sh install-airgap-helpers.sh post-install-extra.sh
-    update-target-repo-from-usb.sh
+    offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
+    post-install-extra.sh update-target-repo-from-usb.sh
   )
 fi
 for s in "${TARGET_SCRIPTS[@]}"; do

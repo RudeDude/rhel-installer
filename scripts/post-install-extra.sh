@@ -164,8 +164,8 @@ install_helpers_from() {
     mkdir -p /usr/local/sbin /usr/local/share/airgap/docs /root/airgap-docs
     local s
     for s in authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh \
-             offline-repo-status.sh post-install-extra.sh update-target-repo-from-usb.sh \
-             install-airgap-helpers.sh; do
+             offline-repo-status.sh configure-grub-timeout.sh post-install-extra.sh \
+             update-target-repo-from-usb.sh install-airgap-helpers.sh; do
       [[ -f "$src/scripts/$s" ]] && cp -a "$src/scripts/$s" /usr/local/sbin/ && chmod 755 "/usr/local/sbin/$s"
     done
     [[ -d "$src/docs" ]] && cp -a "$src/docs"/. /usr/local/share/airgap/docs/ && cp -a "$src/docs"/. /root/airgap-docs/
@@ -338,6 +338,14 @@ log "Final helpers/docs refresh from local mirror"
 install_helpers_from "$LOCAL_REPO_ROOT"
 export LOCAL_REPO_ROOT
 [[ -x /usr/local/sbin/enable-offline-repos.sh ]] && /usr/local/sbin/enable-offline-repos.sh || true
+
+# STIG default GRUB_TIMEOUT=-1 waits forever on the kernel menu — force auto-boot
+log "Configuring GRUB menu auto-timeout (STIG often disables this)"
+if [[ -x /usr/local/sbin/configure-grub-timeout.sh ]]; then
+  GRUB_TIMEOUT="${GRUB_TIMEOUT:-5}" /usr/local/sbin/configure-grub-timeout.sh "${GRUB_TIMEOUT:-5}" || true
+elif [[ -x "$LOCAL_REPO_ROOT/scripts/configure-grub-timeout.sh" ]]; then
+  bash "$LOCAL_REPO_ROOT/scripts/configure-grub-timeout.sh" "${GRUB_TIMEOUT:-5}" || true
+fi
 
 log "Post-install complete (packages installed from local disk)."
 echo "  Local mirror:  $LOCAL_REPO_ROOT  ($(du -sh "$LOCAL_REPO_ROOT" | awk '{print $1}'))"

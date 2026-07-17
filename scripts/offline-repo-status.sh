@@ -36,8 +36,8 @@ done
 echo
 echo "Helpers on PATH (/usr/local/sbin):"
 for s in authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh \
-         offline-repo-status.sh update-target-repo-from-usb.sh post-install-extra.sh \
-         install-airgap-helpers.sh; do
+         offline-repo-status.sh configure-grub-timeout.sh update-target-repo-from-usb.sh \
+         post-install-extra.sh install-airgap-helpers.sh; do
   if [[ -x "/usr/local/sbin/$s" ]]; then
     echo "  OK  $s"
   else
