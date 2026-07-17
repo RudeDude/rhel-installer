@@ -2,13 +2,13 @@
 # Step 07 (final): Write bootable installer + offline package partition to a USB disk.
 #
 # Run AFTER all fetch steps:
-#   01-reposync, 02-fetch-epel, 03-fetch-python-wheels, (04-check),
+#   01-reposync, 02-fetch-epel, 02b-fetch-rpmfusion, 03-fetch-python-wheels, (04-check),
 #   05-generate-kickstart, 06-inject-kickstart
 #
 # Layout after success:
 #   [0 .. ISO image]  isohybrid RHEL installer (dd of custom kickstart ISO)
 #   [after ISO .. end] ext4 LABEL=RHEL8OFFLINE:
-#       BaseOS/ AppStream/ CodeReadyBuilder/ EPEL/ python-wheels/
+#       BaseOS/ AppStream/ CodeReadyBuilder/ EPEL/ RPMFusion/ python-wheels/
 #       packages/ docs/ scripts/ ks/ README-ON-MEDIA.txt
 #
 # Usage:
@@ -181,7 +181,7 @@ preflight() {
     rc=1
   else
     du -sh "$REPO_DIR" 2>/dev/null || true
-    for d in BaseOS AppStream CodeReadyBuilder EPEL; do
+    for d in BaseOS AppStream CodeReadyBuilder EPEL RPMFusion; do
       if [[ -d "$REPO_DIR/$d" ]]; then
         local n
         n="$(find "$REPO_DIR/$d" -name '*.rpm' 2>/dev/null | wc -l)"
@@ -515,9 +515,12 @@ do_write() {
   fi
 
   # Explicitly ensure critical offline content is present (in case REPO_DIR was incomplete)
-  echo "==> Ensuring EPEL RPMs, Python wheels, docs, and install helpers are on media"
+  echo "==> Ensuring EPEL / RPM Fusion / Python wheels, docs, and install helpers are on media"
   if [[ -d "$REPO_DIR/EPEL" ]]; then
     rsync -aH "$REPO_DIR/EPEL"/ "$MNT/EPEL"/
+  fi
+  if [[ -d "$REPO_DIR/RPMFusion" ]]; then
+    rsync -aH "$REPO_DIR/RPMFusion"/ "$MNT/RPMFusion"/
   fi
   if [[ -d "$REPO_DIR/python-wheels" ]]; then
     rsync -aH "$REPO_DIR/python-wheels"/ "$MNT/python-wheels"/
@@ -596,6 +599,7 @@ START HERE:
 Layout:
   BaseOS/  AppStream/  CodeReadyBuilder/
   EPEL/                 # htop, nload, pv, keepassxc, rdesktop, …
+  RPMFusion/            # ffmpeg, gstreamer codecs, …
   python-wheels/        # pipx + deps (offline pip)
   packages/             # required.txt, epel-extra.txt, python-extra.txt, …
   docs/                 # ROOT-HOME-README, OFFLINE-INSTALL, ADDING-PACKAGES, …

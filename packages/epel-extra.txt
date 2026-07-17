@@ -17,3 +17,5 @@ keepassxc
 
 # Classic RDP client (optional; freerdp/xfreerdp is already in required.txt from AppStream)
 rdesktop
+
+# Media codecs (ffmpeg, etc.) → packages/rpmfusion-extra.txt + ./scripts/02b-fetch-rpmfusion-packages.sh

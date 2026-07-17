@@ -17,6 +17,14 @@ evince
 gnome-terminal
 gnome-system-monitor
 
+# --- Media (RHEL AppStream / CRB) ---
+# ffmpeg + some GStreamer codecs are NOT in RHEL CDN — see packages/epel-extra.txt
+gstreamer1-plugins-base
+gstreamer1-plugins-good
+gstreamer1-plugins-good-gtk
+# free "bad" plugins when available on AppStream/CRB (name may be -free)
+gstreamer1-plugins-bad-free
+
 # --- Automation (git is also in required.txt with gitk/git-lfs) ---
 # no gcc/make toolchain by default
 

@@ -7,7 +7,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 - **Base:** Image Builder **liveimg** ISO (`rhel-8.10-fips-stig.iso`), not a package DVD. Rootfs from `liveimg.tar.gz`; extras/errata from USB offline tree.
 - **USB:** two-region — (1) isohybrid installer at start, (2) ext4 `LABEL=RHEL8OFFLINE` for BaseOS/AppStream/CRB/EPEL/wheels/docs/scripts.
 - **Do not** rebuild multi‑GB package ISO for errata; rsync repos to data partition.
-- **Pipeline order (fetch-first):** `01-reposync` → `02-epel` → `03-wheels` → `04-check` → `05-ks` → `06-inject` → `07-prepare-usb` → `08-update-usb`.
+- **Pipeline order (fetch-first):** `01-reposync` → `02-epel` → `02b-rpmfusion` → `03-wheels` → `04-check` → `05-ks` → `06-inject` → `07-prepare-usb` → `08-update-usb`.
 - **Target helpers only** (not 01–08): listed in `scripts/target-scripts.list`. Install path: single `install-airgap-helpers.sh`.
 
 ## Design decisions
@@ -17,6 +17,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 | Partitioning | Interactive Anaconda (no clearpart by default) |
 | Post-install packages | **Two scripts** (not one): `copy-offline-mirror-from-usb.sh` (USB→local, helpers, dnf local) then user umount/unplug then `install-from-local-mirror.sh` (long dnf/GUI/wheels). Never unmount mid-script while still executing from USB. |
 | EPEL | Targeted fetch (`epel-extra.txt`), not full EPEL mirror (~150MB) |
+| RPM Fusion | Targeted fetch (`rpmfusion-extra.txt` → `out/offline-repo/RPMFusion/`) via `02b`; free+nonfree release RPMs in container; needs EPEL+CRB |
 | pipx | **No** RHEL/EPEL8 RPM; offline **wheels** via `python3.11 -m pip --no-index` |
 | ntp | Use **chrony**, not `ntpdate` (missing offline) |
 | keepass | **keepassxc** (not keepassx) |
@@ -46,6 +47,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 | Docker RH creds empty | Pass `-e "VAR=$VAR"` explicitly from host |
 | `subscription-manager repos --disable='*'` very slow | Prefer patching/disabling `redhat.repo` or plugin; don’t rely on full disable for speed |
 | `dnf reposync --repoid` + `--disablerepo` incompatible | Don’t combine; use containerized reposync pattern in `01` |
+| `reposync -n` + `--download-metadata` | CDN repodata lists RPMs not on disk → offline dnf “incorrect checksum”. **Always rebuild repodata from on-disk RPMs** after sync (`01` now does; repair: `rebuild-offline-repodata.sh`) |
 | `pipx` / `ntpdate` missing as RPMs | Wheels + chrony |
 | Kickstart/helper drift | One list `target-scripts.list`; no duplicate enable-repos heredocs in post-install |
 

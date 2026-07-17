@@ -71,7 +71,8 @@ docker exec -u 0 "$CONTAINER_NAME" bash -lc "
 
 echo
 echo "Done. Offline EPEL content: $EPEL_DIR"
-echo "Next: ./scripts/03-fetch-python-wheels.sh"
-echo "Then:  ./scripts/04-check-offline-deps.sh   # optional"
-echo "Then:  ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
-echo "Then:  sudo ./scripts/07-prepare-usb.sh /dev/sdb"
+echo "Next: ./scripts/02b-fetch-rpmfusion-packages.sh   # ffmpeg / media (optional but recommended)"
+echo "Then: ./scripts/03-fetch-python-wheels.sh"
+echo "Then: ./scripts/04-check-offline-deps.sh   # optional"
+echo "Then: ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
+echo "Then: sudo ./scripts/07-prepare-usb.sh /dev/sdb"

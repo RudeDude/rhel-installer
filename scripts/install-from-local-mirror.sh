@@ -88,38 +88,82 @@ if grep -r "file:///mnt/rhel8offline" /etc/yum.repos.d/*.repo 2>/dev/null; then
   exit 1
 fi
 
+# Resolve package lists staged with the offline media (not a hard-coded dnf line)
+find_pkg_list() {
+  local name="$1" d
+  for d in \
+    "$LOCAL_REPO_ROOT/packages" \
+    /root/airgap-packages \
+    /usr/local/share/airgap/packages
+  do
+    if [[ -f "$d/$name" ]]; then
+      echo "$d/$name"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Read one-name-per-line package file (strip comments / blanks)
+pkg_file_to_array() {
+  local f="$1"
+  [[ -f "$f" ]] || return 0
+  sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$f"
+}
+
+dnf_install_list() {
+  local label="$1"
+  shift
+  local -a pkgs=("$@")
+  if [[ ${#pkgs[@]} -eq 0 ]]; then
+    log "No packages for: $label (skip)"
+    return 0
+  fi
+  log "Installing $label (${#pkgs[@]} packages) from local offline repos"
+  # shellcheck disable=SC2068
+  dnf -y --disablerepo='*' --enablerepo='offline-local-*' install ${pkgs[@]}
+}
+
 dnf clean all >/dev/null 2>&1 || true
 
 log "Applying upgrades from LOCAL offline mirror"
 dnf -y --disablerepo='*' --enablerepo='offline-local-*' upgrade || true
 
-log "Installing core required packages (from local mirror)"
-dnf -y --disablerepo='*' --enablerepo='offline-local-*' install \
-  chrony nano bc socat jq python3 python3-pip python3-setuptools \
-  python3.11 python3.11-pip python3.11-setuptools \
-  tcpdump wireshark wireshark-cli freerdp \
-  java-1.8.0-openjdk java-1.8.0-openjdk-devel \
-  java-11-openjdk java-11-openjdk-devel \
-  java-17-openjdk java-17-openjdk-devel java-17-openjdk-headless \
-  vim-enhanced tmux net-tools gedit tree util-linux util-linux-user \
-  rsync openssh openssh-server openssh-clients \
-  git gitk git-lfs \
-  curl wget tar unzip zip bind-utils nmap-ncat
+mapfile -t REQ_PKGS < <(pkg_file_to_array "$(find_pkg_list required.txt || true)")
+mapfile -t REC_PKGS < <(pkg_file_to_array "$(find_pkg_list recommended.txt || true)")
+mapfile -t EPEL_PKGS < <(pkg_file_to_array "$(find_pkg_list epel-extra.txt || true)")
+mapfile -t FUSION_PKGS < <(pkg_file_to_array "$(find_pkg_list rpmfusion-extra.txt || true)")
+
+if [[ ${#REQ_PKGS[@]} -eq 0 && ${#REC_PKGS[@]} -eq 0 ]]; then
+  echo "ERROR: no required.txt / recommended.txt found under $LOCAL_REPO_ROOT/packages (or airgap copies)." >&2
+  echo "Re-run copy-offline-mirror-from-usb.sh so packages/*.txt are on the local mirror." >&2
+  exit 1
+fi
+
+# Combined install (BaseOS/AppStream/CRB + EPEL + RPM Fusion offline trees)
+dnf_install_list "required.txt" "${REQ_PKGS[@]:-}"
+dnf_install_list "recommended.txt" "${REC_PKGS[@]:-}"
 
 systemctl enable --now sshd 2>/dev/null || systemctl enable sshd 2>/dev/null || true
 
-log "Installing selected extras"
-dnf -y --disablerepo='*' --enablerepo='offline-local-*' install \
-  iotop sysstat lsof strace bash-completion man-pages man-db \
-  firefox evince gnome-terminal gnome-system-monitor \
-  psmisc procps-ng which file less diffutils
+if [[ ${#EPEL_PKGS[@]} -gt 0 ]]; then
+  if [[ -d "$LOCAL_REPO_ROOT/EPEL/repodata" || -d "$LOCAL_REPO_ROOT/EPEL/Packages" ]]; then
+    dnf_install_list "epel-extra.txt" "${EPEL_PKGS[@]}"
+  else
+    echo "ERROR: EPEL packages listed but EPEL tree missing under $LOCAL_REPO_ROOT/EPEL" >&2
+    echo "On build host: edit packages/epel-extra.txt && ./scripts/02-fetch-epel-packages.sh" >&2
+    exit 1
+  fi
+fi
 
-log "Installing EPEL extras (htop, nload, pv, keepassxc, rdesktop)"
-if [[ -d "$LOCAL_REPO_ROOT/EPEL/repodata" || -d "$LOCAL_REPO_ROOT/EPEL/Packages" ]]; then
-  dnf -y --disablerepo='*' --enablerepo='offline-local-*' install htop nload pv keepassxc rdesktop
-else
-  echo "ERROR: EPEL tree missing under $LOCAL_REPO_ROOT/EPEL" >&2
-  exit 1
+if [[ ${#FUSION_PKGS[@]} -gt 0 ]]; then
+  if [[ -d "$LOCAL_REPO_ROOT/RPMFusion/repodata" || -d "$LOCAL_REPO_ROOT/RPMFusion/Packages" ]]; then
+    dnf_install_list "rpmfusion-extra.txt" "${FUSION_PKGS[@]}"
+  else
+    echo "ERROR: RPM Fusion packages listed but RPMFusion/ tree missing under $LOCAL_REPO_ROOT" >&2
+    echo "On build host: edit packages/rpmfusion-extra.txt && ./scripts/02b-fetch-rpmfusion-packages.sh" >&2
+    exit 1
+  fi
 fi
 
 WHEEL_DIR="${LOCAL_REPO_ROOT}/python-wheels"

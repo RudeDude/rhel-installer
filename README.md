@@ -38,6 +38,7 @@ USB
     ├── AppStream/
     ├── CodeReadyBuilder/
     ├── EPEL/                   # required RPMs: htop, nload, pv, keepassxc, rdesktop
+    ├── RPMFusion/              # ffmpeg, gstreamer codecs (free+nonfree staged)
     ├── python-wheels/          # pre-staged PyPI wheels (pipx + deps)
     ├── ks/ks.cfg
     ├── docs/                   # ROOT-HOME-README, OFFLINE-INSTALL, …
@@ -85,10 +86,11 @@ That is what `config.env` / the Dockerfile use after the last fixes. Full RHEL p
 Those are listed in `packages/epel-extra.txt` and pulled with a **targeted** download (not a full EPEL Everything mirror):
 
 ```bash
-./scripts/02-fetch-epel-packages.sh   # -> out/offline-repo/EPEL/ (~150 MB with deps for current list)
+./scripts/02-fetch-epel-packages.sh          # -> out/offline-repo/EPEL/
+./scripts/02b-fetch-rpmfusion-packages.sh    # -> out/offline-repo/RPMFusion/ (ffmpeg, …)
 ```
 
-Treat `out/offline-repo/EPEL/` as part of the USB offline tree (`LABEL=RHEL8OFFLINE`), same as BaseOS/AppStream/CRB.
+Treat `out/offline-repo/EPEL/` and `RPMFusion/` as part of the USB offline tree (`LABEL=RHEL8OFFLINE`), same as BaseOS/AppStream/CRB.
 
 ## Quick workflow
 
@@ -115,6 +117,9 @@ chmod 600 config.env
 
 # 02 EPEL RPMs (htop, nload, pv, keepassxc, rdesktop, …)
 ./scripts/02-fetch-epel-packages.sh
+
+# 02b RPM Fusion (ffmpeg, gstreamer codecs, …)
+./scripts/02b-fetch-rpmfusion-packages.sh
 
 # 03 Python wheels (pipx + deps, …)
 ./scripts/03-fetch-python-wheels.sh
@@ -156,8 +161,9 @@ See also `docs/USB-PREPARE-REVIEW.md`.
 2. **Kickstart `%post`** mounts `LABEL=RHEL8OFFLINE`, enables file:// repos (RHEL + required EPEL tree), runs `dnf upgrade` / installs your lists, and can `groupinstall "Server with GUI"`.
 3. **Offline RHEL tree** is a full newest-only (`dnf reposync -n`) mirror of BaseOS + AppStream + CRB — primary security-update channel on the stick.
 4. **Offline EPEL tree** is a **required** targeted RPM set (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …) via `packages/epel-extra.txt`.
-5. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/03-fetch-python-wheels.sh`.
-6. **Target first setup (two scripts):** `copy-offline-mirror-from-usb.sh` (USB→disk), then after unplug `install-from-local-mirror.sh` (dnf/wheels/GUI from local mirror).
+5. **Offline RPM Fusion tree** stages media packages (`ffmpeg`, …) via `packages/rpmfusion-extra.txt` + `./scripts/02b-fetch-rpmfusion-packages.sh` (needs EPEL + CRB).
+6. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/03-fetch-python-wheels.sh`.
+7. **Target first setup (two scripts):** `copy-offline-mirror-from-usb.sh` (USB→disk), then after unplug `install-from-local-mirror.sh` (dnf/wheels/GUI from local mirror).
 
 Package name notes: `docs/PACKAGE-NOTES.md`.
 
@@ -167,10 +173,11 @@ Lists / config:
 |------|----------------|
 | RHEL RPMs | `packages/required.txt`, `recommended.txt` |
 | EPEL RPMs | `packages/epel-extra.txt` → `./scripts/02-fetch-epel-packages.sh` |
+| RPM Fusion | `packages/rpmfusion-extra.txt` → `./scripts/02b-fetch-rpmfusion-packages.sh` |
 | PyPI / wheels | `packages/python-extra.txt` → `./scripts/03-fetch-python-wheels.sh` |
 | Config | `PYTHON_EXTRA_FILE`, `PYTHON_WHEEL_DIR`, `PYTHON_PIP` in `config.env` |
 
-**Adding more packages later:** see **`docs/ADDING-PACKAGES.md`** (RPM vs EPEL vs wheel paths).
+**Adding more packages later:** see **`docs/ADDING-PACKAGES.md`** (RPM vs EPEL vs RPM Fusion vs wheel paths).
 
 ## Measured space (x86_64, newest-only reposync)
 
@@ -181,8 +188,9 @@ Lists / config:
 | AppStream | ~17 GB |
 | CodeReady Builder | ~13 GB |
 | EPEL (targeted required set) | ~0.15 GB |
+| RPM Fusion (ffmpeg + deps, typical) | ~0.05–0.3 GB |
 | Python wheels (pipx + deps) | ~0.001 GB |
-| **Offline tree total** | **~31 GB** (+ EPEL + wheels) |
+| **Offline tree total** | **~31 GB** (+ EPEL + Fusion + wheels) |
 | USB capacity | ~230 GB usable |
 
 Earlier “AppStream 35–55 GB” estimates assumed older/fuller mirrors; with `-n` (newest NEVRA only) ~31 GB total is realistic.
@@ -225,6 +233,7 @@ rhel-installer/
 │   ├── required.txt
 │   ├── recommended.txt
 │   ├── epel-extra.txt
+│   ├── rpmfusion-extra.txt
 │   ├── python-extra.txt
 │   └── groups.txt
 ├── kickstart/
@@ -234,6 +243,7 @@ rhel-installer/
 ├── scripts/                    # numbered so all fetch precedes prepare-usb
 │   ├── 01-reposync.sh
 │   ├── 02-fetch-epel-packages.sh
+│   ├── 02b-fetch-rpmfusion-packages.sh  # ffmpeg / media
 │   ├── 03-fetch-python-wheels.sh
 │   ├── 04-check-offline-deps.sh
 │   ├── 05-generate-kickstart.sh
@@ -245,7 +255,7 @@ rhel-installer/
 │   ├── status-reposync.sh
 │   ├── copy-offline-mirror-from-usb.sh  # step 1: USB → local mirror
 │   └── install-from-local-mirror.sh     # step 2: packages from local disk
-└── out/                        # offline-repo (BaseOS/AppStream/CRB/EPEL/python-wheels), ISO, logs
+└── out/                        # offline-repo (BaseOS/AppStream/CRB/EPEL/RPMFusion/…), ISO, logs
 ```
 
 ## Security

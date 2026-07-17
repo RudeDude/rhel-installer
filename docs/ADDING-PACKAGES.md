@@ -6,7 +6,7 @@ There are two different problems people mix up:
 2. **Have the RPM (and deps) on the USB** so offline `dnf install` can succeed
 
 For packages already in your mirrored **BaseOS / AppStream / CRB** trees, (2) is already done.  
-For packages only in **EPEL** (or other third-party repos), you must add a separate offline tree.
+For packages only in **EPEL** or **RPM Fusion**, add them to the matching list file and run the fetch script.
 
 ## RHEL package names for this request
 
@@ -26,7 +26,7 @@ No re-download of the whole repo is required.
 1. Append the **real RPM name** to a list file:
    - `packages/required.txt` — always installed in generated kickstart `%post` / intended baseline
    - `packages/recommended.txt` — when `INCLUDE_RECOMMENDED=yes` in `config.env`
-2. Optionally mirror the same names in `scripts/install-from-local-mirror.sh` (first-boot helper).
+2. Target install picks up list files automatically (`install-from-local-mirror.sh` reads `packages/*.txt` from the local mirror).
 3. Rebuild kickstart (and ISO if you inject it):
 
    ```bash
@@ -74,6 +74,32 @@ dnf info rsync openssh-server
 4. On the installed system with offline repos enabled: `sudo dnf install htop nload …`
 
 > Full EPEL “Everything” is large. Prefer **targeted** downloads.
+
+## B2. Add a package from RPM Fusion (ffmpeg, codecs, …)
+
+1. Add the name to **`packages/rpmfusion-extra.txt`**.
+2. Ensure CRB + EPEL are available in the container, then:
+
+   ```bash
+   ./scripts/01-reposync.sh                 # if needed (CRB)
+   ./scripts/02-fetch-epel-packages.sh      # EPEL deps for Fusion
+   ./scripts/02b-fetch-rpmfusion-packages.sh
+   ```
+
+   Builds:
+
+   ```text
+   out/offline-repo/RPMFusion/
+     Packages/*.rpm
+     repodata/
+     INVENTORY.txt
+   ```
+
+3. Push to USB: `sudo ./scripts/08-update-usb.sh --repos --device /dev/sdX`
+4. On the target (after local mirror copy): `sudo dnf install ffmpeg`  
+   (or re-run `install-from-local-mirror.sh` which installs `rpmfusion-extra.txt`)
+
+Optional: `RPMFUSION_SKIP_NONFREE=1` for free-only. Default enables free + nonfree release repos.
 
 ## C. Add a Python package with no RPM (pipx, …) — pre-staged wheels
 

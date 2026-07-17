@@ -1,0 +1,18 @@
+# Packages from RPM Fusion (EL8 free + nonfree) for air-gap use.
+# Fetched with: ./scripts/02b-fetch-rpmfusion-packages.sh
+# Staged under: out/offline-repo/RPMFusion/
+#
+# Prerequisites on the build host container:
+#   ./scripts/01-reposync.sh   # RHEL + CRB
+#   ./scripts/02-fetch-epel-packages.sh   # EPEL (RPM Fusion depends on EPEL)
+#
+# Confirm names: dnf search <name>  (with rpmfusion-free / rpmfusion-nonfree enabled)
+#
+# Free vs nonfree: this list may pull from either; both repos are enabled during fetch.
+
+# --- Media (classic reason to add RPM Fusion) ---
+ffmpeg
+gstreamer1-plugins-ugly
+gstreamer1-libav
+gstreamer1-plugins-bad-nonfree
+vlc

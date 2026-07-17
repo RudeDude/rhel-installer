@@ -97,6 +97,7 @@ Repo file: `/etc/yum.repos.d/offline-local.repo`
 | `offline-local-appstream` | `…/AppStream` |
 | `offline-local-crb` | `…/CodeReadyBuilder` |
 | `offline-local-epel` | `…/EPEL` |
+| `offline-local-rpmfusion` | `…/RPMFusion` |
 
 Also see: **`/root/README.md`** (full guide) and `/root/README-OFFLINE-REPOS.txt` (short pointer).
 
@@ -122,6 +123,7 @@ python3.11 -m pip install --no-index \
 /mnt/rhel8offline/   (or LABEL=RHEL8OFFLINE)
   BaseOS/  AppStream/  CodeReadyBuilder/
   EPEL/
+  RPMFusion/            # ffmpeg, codecs (from 02b)
   python-wheels/
   packages/
   docs/                 # ROOT-HOME-README, OFFLINE-INSTALL, ADDING-PACKAGES, …
@@ -140,6 +142,7 @@ python3.11 -m pip install --no-index \
 # 1) Refresh content as needed
 ./scripts/01-reposync.sh                 # RHEL errata/packages
 ./scripts/02-fetch-epel-packages.sh      # if epel-extra.txt changed
+./scripts/02b-fetch-rpmfusion-packages.sh  # if rpmfusion-extra.txt changed (ffmpeg, …)
 ./scripts/03-fetch-python-wheels.sh      # if python-extra.txt changed
 
 # 2) Push to existing USB (keeps data partition; does not wipe stick)
@@ -177,6 +180,7 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator ind
 ```text
 01-reposync.sh
 02-fetch-epel-packages.sh
+02b-fetch-rpmfusion-packages.sh   # ffmpeg / media (RPM Fusion free+nonfree)
 03-fetch-python-wheels.sh
 04-check-offline-deps.sh      # optional
 05-generate-kickstart.sh
@@ -196,6 +200,7 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator ind
 | dnf tries to use network | `sudo enable-offline-repos.sh`; ensure only `offline-local*.repo` is enabled |
 | No packages found | `sudo offline-repo-status.sh`; confirm BaseOS/AppStream under `/var/lib/offline-repos` |
 | htop missing | EPEL tree must exist under local mirror |
+| ffmpeg missing | RPMFusion tree + `02b-fetch-rpmfusion-packages.sh`; check `offline-repo-status.sh` |
 | pipx missing | `python-wheels/` under local mirror; use python3.11 |
 | Disk full on copy | Need ~35GB+ free on `/` (or set `LOCAL_REPO_ROOT` to a larger filesystem) |
 | GRUB kernel menu never times out | STIG often sets `GRUB_TIMEOUT=-1`. Run `sudo configure-grub-timeout.sh` then reboot |

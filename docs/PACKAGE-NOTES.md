@@ -32,6 +32,12 @@
 | pv | **`pv` — EPEL 8 only** (pipe viewer) |
 | pipx | **No RPM** on RHEL 8 / EPEL 8. **Pre-stage wheels** (`python-extra.txt` → `out/offline-repo/python-wheels/`). Install with `python3.11 -m pip install --no-index --find-links=…`. |
 | ntpdate | **Removed** — not in RHEL 8; use `chrony` / `chronyc`. |
+| ffmpeg | **RPM Fusion free** — `packages/rpmfusion-extra.txt` + `./scripts/02b-fetch-rpmfusion-packages.sh` |
+| gstreamer1-plugins-base/good | RHEL AppStream — `packages/recommended.txt` |
+| gstreamer1-plugins-ugly / libav | **RPM Fusion** — `packages/rpmfusion-extra.txt` |
+| gstreamer1-plugins-bad-nonfree | **RPM Fusion nonfree** — same list/script |
+
+**Staging vs install:** `01` mirrors BaseOS/AppStream/**CRB**. `02` stages EPEL list. `02b` stages RPM Fusion list into `out/offline-repo/RPMFusion/`. Target install reads lists via `install-from-local-mirror.sh`.
 
 See `docs/ADDING-PACKAGES.md` for how to add more packages and re-sync.
 

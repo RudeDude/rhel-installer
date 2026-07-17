@@ -126,42 +126,70 @@ echo "==> Enabling repos + installing sync tools: $SYNC_REPOS"
 # NOTE: avoid `subscription-manager repos --enable/--disable` on developer accounts —
 # it walks thousands of product repos and can take many minutes. Patch redhat.repo
 # enabled= flags directly, then use dnf with --repoid= (which implies only that repo).
-docker exec -u 0 "$CONTAINER_NAME" bash -lc "
+#
+# CRB (CodeReady Builder) must be enabled: many AppStream/EPEL build-time deps and
+# optional packages live there. `crb enable` is the supported shortcut when present;
+# we also force-enable codeready-builder in redhat.repo so reposync always gets it.
+docker exec -u 0 \
+  -e "SYNC_REPOS=${SYNC_REPOS}" \
+  "$CONTAINER_NAME" bash -lc '
   set -euo pipefail
-  /usr/libexec/platform-python - <<'PY'
+  /usr/libexec/platform-python - <<'"'"'PY'"'"'
 from pathlib import Path
 import os, re
-path = Path('/etc/yum.repos.d/redhat.repo')
-wanted = set(os.environ.get('SYNC_REPOS', '').split())
+path = Path("/etc/yum.repos.d/redhat.repo")
+wanted = {x for x in os.environ.get("SYNC_REPOS", "").split() if x}
 if not wanted:
     wanted = {
-        'rhel-8-for-x86_64-baseos-rpms',
-        'rhel-8-for-x86_64-appstream-rpms',
-        'codeready-builder-for-rhel-8-x86_64-rpms',
+        "rhel-8-for-x86_64-baseos-rpms",
+        "rhel-8-for-x86_64-appstream-rpms",
+        "codeready-builder-for-rhel-8-x86_64-rpms",
     }
+# Always include CRB when doing a full offline mirror
+wanted.add("codeready-builder-for-rhel-8-x86_64-rpms")
+if not path.is_file():
+    raise SystemExit("missing /etc/yum.repos.d/redhat.repo — register first")
 out=[]; section=None
 for line in path.read_text().splitlines(True):
-    m=re.match(r'^\[(.+)\]\s*$', line)
+    m=re.match(r"^\[(.+)\]\s*$", line)
     if m:
         section=m.group(1); out.append(line); continue
-    if section in wanted and re.match(r'(?i)^\s*enabled\s*=', line):
-        out.append('enabled = 1\n'); continue
+    if section in wanted and re.match(r"(?i)^\s*enabled\s*=", line):
+        out.append("enabled = 1\n"); continue
     out.append(line)
-path.write_text(''.join(out))
-print('enabled:', ', '.join(sorted(wanted)))
+path.write_text("".join(out))
+print("redhat.repo enabled:", ", ".join(sorted(wanted)))
 PY
+
+  # Preferred RHEL helper (same effect as enabling codeready-builder)
+  if command -v crb >/dev/null 2>&1; then
+    echo "Running: crb enable"
+    crb enable || true
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms 2>/dev/null || true
+  fi
+
+  # Confirm CRB is visible to dnf
+  dnf repolist --enabled 2>/dev/null | grep -iE "codeready|crb" || \
+    echo "WARN: CRB not listed in dnf repolist — check subscription entitlements" >&2
+
   dnf -y install dnf-plugins-core yum-utils createrepo_c rsync findutils \
-    --disablerepo='*' \
+    --disablerepo="*" \
     --enablerepo=rhel-8-for-x86_64-baseos-rpms \
-    --enablerepo=rhel-8-for-x86_64-appstream-rpms || \
-    dnf -y install dnf-plugins-core yum-utils rsync findutils \
-      --disablerepo='*' \
+    --enablerepo=rhel-8-for-x86_64-appstream-rpms \
+    --enablerepo=codeready-builder-for-rhel-8-x86_64-rpms || \
+    dnf -y install dnf-plugins-core yum-utils createrepo_c rsync findutils \
+      --disablerepo="*" \
       --enablerepo=rhel-8-for-x86_64-baseos-rpms \
       --enablerepo=rhel-8-for-x86_64-appstream-rpms
   dnf clean all || true
-" 
+'
 
 echo "==> reposync (this can take a long time and tens of GB)"
+# IMPORTANT: reposync -n (newest-only) + --download-metadata leaves CDN repodata
+# listing packages that were never downloaded → "incorrect checksum" / missing RPM
+# on offline dnf. Always rebuild package metadata from *on-disk* RPMs after sync,
+# re-injecting modules.yaml (AppStream modular) and comps when present.
 for repoid in $SYNC_REPOS; do
   dest="$(map_repo_dir "$repoid")"
   echo "---- sync $repoid -> /repo/$dest ----"
@@ -169,8 +197,8 @@ for repoid in $SYNC_REPOS; do
     set -euo pipefail
     mkdir -p /repo/$dest
     # --repoid selects the repo; do NOT also pass --disablerepo (mutually exclusive)
-    # --download-metadata is critical for modular AppStream content
-    # -n = newest only (still includes current errata packages for each NEVRA stream)
+    # --download-metadata pulls modules/updateinfo; we rewrite primary/filelists after
+    # -n = newest only
     dnf reposync \
       --repoid=$repoid \
       --download-path=/repo/$dest \
@@ -179,9 +207,22 @@ for repoid in $SYNC_REPOS; do
       --norepopath \
       -n
 
-    if [[ ! -d /repo/$dest/repodata ]]; then
-      createrepo_c /repo/$dest
+    # Rebuild package metadata from RPMs on disk only.
+    # Do NOT keep CDN primary/filelists (lists undownloaded NEVRAs after -n).
+    # Do NOT re-inject modules.yaml (easy to corrupt; offline uses module_hotfixes=1).
+    tmp=\$(mktemp -d)
+    comps_src=\$(find /repo/$dest/repodata -name '*comps*.xml*' ! -name '*modules*' 2>/dev/null | head -1 || true)
+    comps_arg=()
+    if [[ -n \"\$comps_src\" && -f \"\$comps_src\" ]]; then
+      case \"\$comps_src\" in
+        *.gz) gunzip -c \"\$comps_src\" > \"\$tmp/comps.xml\" && comps_arg=(-g \"\$tmp/comps.xml\") ;;
+        *.xml) comps_arg=(-g \"\$comps_src\") ;;
+      esac
     fi
+    echo \"Rebuilding repodata for /repo/$dest from on-disk RPMs...\"
+    rm -f /repo/$dest/repodata/*modules* 2>/dev/null || true
+    createrepo_c --workers \$(nproc 2>/dev/null || echo 2) \"\${comps_arg[@]}\" /repo/$dest
+    rm -rf \"\$tmp\"
     echo \"size=\$(du -sh /repo/$dest | cut -f1) rpms=\$(find /repo/$dest -name '*.rpm' | wc -l)\"
   "
 done
@@ -206,4 +247,6 @@ du -sh "$REPO_DIR"/* 2>/dev/null || du -sh "$REPO_DIR"
 
 echo
 echo "DONE. Offline repo at: $REPO_DIR"
-echo "Next: ./scripts/02-fetch-epel-packages.sh then 03-fetch-python-wheels.sh"
+echo "Next: ./scripts/02-fetch-epel-packages.sh"
+echo "      ./scripts/02b-fetch-rpmfusion-packages.sh   # ffmpeg / media from RPM Fusion"
+echo "      ./scripts/03-fetch-python-wheels.sh"
