@@ -2,8 +2,8 @@
 # Step 07 (final): Write bootable installer + offline package partition to a USB disk.
 #
 # Run AFTER all fetch steps:
-#   01-reposync, 02-fetch-epel, 02b-fetch-rpmfusion, 03-fetch-python-wheels, (04-check),
-#   05-generate-kickstart, 06-inject-kickstart
+#   01-fetch-offline-content,
+#   02-build-kickstart-iso
 #
 # Layout after success:
 #   [0 .. ISO image]  isohybrid RHEL installer (dd of custom kickstart ISO)
@@ -12,9 +12,9 @@
 #       packages/ docs/ scripts/ ks/ README-ON-MEDIA.txt
 #
 # Usage:
-#   ./scripts/07-prepare-usb.sh --dry-run [/dev/sdb]
-#   sudo ./scripts/07-prepare-usb.sh /dev/sdb
-#   sudo ./scripts/07-prepare-usb.sh --yes /dev/sdb
+#   ./scripts/03-prepare-usb.sh --dry-run [/dev/sdb]
+#   sudo ./scripts/03-prepare-usb.sh /dev/sdb
+#   sudo ./scripts/03-prepare-usb.sh --yes /dev/sdb
 #
 # Defaults DEVICE from config.env USB_DEVICE if set.
 set -euo pipefail
@@ -100,14 +100,14 @@ pick_iso() {
       ISO="$SOURCE_ISO_PATH"
       echo "ISO: STOCK source (kickstart NOT injected yet)"
       echo "     $ISO"
-      echo "     Build custom ISO with: ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
+      echo "     Build custom ISO with: ./scripts/02-build-kickstart-iso.sh && ./scripts/02-build-kickstart-iso.sh"
       return 0
     fi
   fi
   echo "ERROR: Custom ISO not found: $CUSTOM_ISO" >&2
   echo "  1) Set password hashes in config.env" >&2
-  echo "  2) ./scripts/05-generate-kickstart.sh" >&2
-  echo "  3) ./scripts/06-inject-kickstart.sh" >&2
+  echo "  2) ./scripts/02-build-kickstart-iso.sh" >&2
+  echo "  3) ./scripts/02-build-kickstart-iso.sh" >&2
   echo "  Or re-run with --allow-stock-iso to write the unpatched FIPS ISO (not recommended for final media)." >&2
   return 1
 }
@@ -195,7 +195,7 @@ preflight() {
       nw="$(find "$REPO_DIR/python-wheels" -name '*.whl' 2>/dev/null | wc -l)"
       printf '  %-18s %s  wheels=%s\n' "python-wheels" "$(du -sh "$REPO_DIR/python-wheels" 2>/dev/null | awk '{print $1}')" "$nw"
     else
-      printf '  %-18s MISSING (run ./scripts/03-fetch-python-wheels.sh)\n' "python-wheels"
+      printf '  %-18s MISSING (run ./scripts/01-fetch-offline-content.sh)\n' "python-wheels"
       if [[ "$ALLOW_INCOMPLETE_REPO" -eq 0 ]]; then
         rc=1
       fi
@@ -208,7 +208,7 @@ preflight() {
       rc=1
     fi
     if [[ ! -d "$REPO_DIR/EPEL/repodata" && ! -d "$REPO_DIR/EPEL/Packages" ]]; then
-      echo "ERROR: EPEL tree missing — run ./scripts/02-fetch-epel-packages.sh" >&2
+      echo "ERROR: EPEL tree missing — run ./scripts/01-fetch-offline-content.sh" >&2
       if [[ "$ALLOW_INCOMPLETE_REPO" -eq 0 ]]; then
         rc=1
       fi
@@ -246,7 +246,7 @@ preflight() {
   echo "  - docs/ (ROOT-HOME-README, OFFLINE-INSTALL, ADDING-PACKAGES, …)"
   echo "  - scripts/ (all target helpers via target-scripts.list)"
   echo "  - project README.md"
-  [[ -f "$ROOT/out/ks.cfg" ]] && echo "  - ks/ks.cfg" || echo "  - ks: (missing out/ks.cfg — run ./scripts/05-generate-kickstart.sh)"
+  [[ -f "$ROOT/out/ks.cfg" ]] && echo "  - ks/ks.cfg" || echo "  - ks: (missing out/ks.cfg — run ./scripts/02-build-kickstart-iso.sh)"
   [[ -f "$ROOT/scripts/copy-offline-mirror-from-usb.sh" ]] && echo "  - scripts/copy-offline-mirror-from-usb.sh OK" || echo "  - copy-offline-mirror-from-usb.sh MISSING"
   [[ -f "$ROOT/scripts/install-from-local-mirror.sh" ]] && echo "  - scripts/install-from-local-mirror.sh OK" || echo "  - install-from-local-mirror.sh MISSING"
   [[ -f "$ROOT/scripts/install-airgap-helpers.sh" ]] && echo "  - scripts/install-airgap-helpers.sh OK" || echo "  - install-airgap-helpers.sh MISSING"

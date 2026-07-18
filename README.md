@@ -72,7 +72,7 @@ That is what `config.env` / the Dockerfile use after the last fixes. Full RHEL p
 
 ### Offline content sources (RHEL **and** EPEL)
 
-**RHEL 8 CDN** (full newest-only mirror via `./scripts/01-reposync.sh`):
+**RHEL 8 CDN** (full newest-only mirror via `./scripts/01-fetch-offline-content.sh`):
 
 - `rhel-8-for-x86_64-baseos-rpms`
 - `rhel-8-for-x86_64-appstream-rpms`
@@ -86,8 +86,8 @@ That is what `config.env` / the Dockerfile use after the last fixes. Full RHEL p
 Those are listed in `packages/epel-extra.txt` and pulled with a **targeted** download (not a full EPEL Everything mirror):
 
 ```bash
-./scripts/02-fetch-epel-packages.sh          # -> out/offline-repo/EPEL/
-./scripts/02b-fetch-rpmfusion-packages.sh    # -> out/offline-repo/RPMFusion/ (ffmpeg, …)
+./scripts/01-fetch-offline-content.sh          # -> out/offline-repo/EPEL/
+./scripts/01-fetch-offline-content.sh    # -> out/offline-repo/RPMFusion/ (ffmpeg, …)
 ```
 
 Treat `out/offline-repo/EPEL/` and `RPMFusion/` as part of the USB offline tree (`LABEL=RHEL8OFFLINE`), same as BaseOS/AppStream/CRB.
@@ -110,37 +110,23 @@ chmod 600 config.env
 #   openssl passwd -6 'YourPassword'
 #   KS_ROOT_PASSWORD_HASH='$6$rounds=...'
 
-# --- All fetch steps before USB prepare ---
-# 01 RHEL repos (tens of GB)
-./scripts/01-reposync.sh
-./scripts/status-reposync.sh
+# --- Build-host pipeline ---
+# 01 Fetch all offline content (RHEL + EPEL + RPM Fusion + wheels + dep check; stops Docker)
+./scripts/01-fetch-offline-content.sh
 
-# 02 EPEL RPMs (htop, nload, pv, keepassxc, rdesktop, …)
-./scripts/02-fetch-epel-packages.sh
+# 02 Kickstart + custom installer ISO
+./scripts/02-build-kickstart-iso.sh      # -> out/ks.cfg + out/rhel-8.10-airgap-ks.iso
 
-# 02b RPM Fusion (ffmpeg, gstreamer codecs, …)
-./scripts/02b-fetch-rpmfusion-packages.sh
-
-# 03 Python wheels (pipx + deps, …)
-./scripts/03-fetch-python-wheels.sh
-
-# 04 Optional offline dep check
-# ./scripts/04-check-offline-deps.sh
-
-# 05–06 Kickstart + custom ISO
-./scripts/05-generate-kickstart.sh
-./scripts/06-inject-kickstart.sh      # -> out/rhel-8.10-airgap-ks.iso
-
-# 07 Write USB first time only (DESTRUCTIVE) — full layout + docs
-./scripts/07-prepare-usb.sh --dry-run /dev/sdb
-sudo ./scripts/07-prepare-usb.sh /dev/sdb
+# 03 Write USB first time only (DESTRUCTIVE) — full layout + docs
+./scripts/03-prepare-usb.sh --dry-run /dev/sdb
+sudo ./scripts/03-prepare-usb.sh /dev/sdb
 # type YES when prompted
 
 # Later incremental USB updates (no reimage):
-#   sudo ./scripts/08-update-usb.sh --repos --device /dev/sdb
-#   sudo ./scripts/08-update-usb.sh --ks    --device /dev/sdb   # kickstart/helpers only
-#   sudo ./scripts/08-update-usb.sh --boot  --device /dev/sdb   # mount ESP, update boot files only
-#   sudo ./scripts/08-update-usb.sh --all   --device /dev/sdb
+#   sudo ./scripts/04-update-usb.sh --repos --device /dev/sdb
+#   sudo ./scripts/04-update-usb.sh --ks    --device /dev/sdb   # kickstart/helpers only
+#   sudo ./scripts/04-update-usb.sh --boot  --device /dev/sdb   # mount ESP, update boot files only
+#   sudo ./scripts/04-update-usb.sh --all   --device /dev/sdb
 # On target: sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh
 ```
 
@@ -161,8 +147,8 @@ See also `docs/USB-PREPARE-REVIEW.md`.
 2. **Kickstart `%post`** mounts `LABEL=RHEL8OFFLINE`, enables file:// repos (RHEL + required EPEL tree), runs `dnf upgrade` / installs your lists, and can `groupinstall "Server with GUI"`.
 3. **Offline RHEL tree** is a full newest-only (`dnf reposync -n`) mirror of BaseOS + AppStream + CRB — primary security-update channel on the stick.
 4. **Offline EPEL tree** is a **required** targeted RPM set (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …) via `packages/epel-extra.txt`.
-5. **Offline RPM Fusion tree** stages media packages (`ffmpeg`, …) via `packages/rpmfusion-extra.txt` + `./scripts/02b-fetch-rpmfusion-packages.sh` (needs EPEL + CRB).
-6. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/03-fetch-python-wheels.sh`.
+5. **Offline RPM Fusion tree** stages media packages (`ffmpeg`, …) via `packages/rpmfusion-extra.txt` + `./scripts/01-fetch-offline-content.sh` (needs EPEL + CRB).
+6. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/01-fetch-offline-content.sh`.
 7. **Target first setup (two scripts):** `copy-offline-mirror-from-usb.sh` (USB→disk), then after unplug `install-from-local-mirror.sh` (dnf/wheels/GUI from local mirror).
 
 Package name notes: `docs/PACKAGE-NOTES.md`.
@@ -172,9 +158,9 @@ Lists / config:
 | What | File / script |
 |------|----------------|
 | RHEL RPMs | `packages/required.txt`, `recommended.txt` |
-| EPEL RPMs | `packages/epel-extra.txt` → `./scripts/02-fetch-epel-packages.sh` |
-| RPM Fusion | `packages/rpmfusion-extra.txt` → `./scripts/02b-fetch-rpmfusion-packages.sh` |
-| PyPI / wheels | `packages/python-extra.txt` → `./scripts/03-fetch-python-wheels.sh` |
+| EPEL RPMs | `packages/epel-extra.txt` → `./scripts/01-fetch-offline-content.sh` |
+| RPM Fusion | `packages/rpmfusion-extra.txt` → `./scripts/01-fetch-offline-content.sh` |
+| PyPI / wheels | `packages/python-extra.txt` → `./scripts/01-fetch-offline-content.sh` |
 | Config | `PYTHON_EXTRA_FILE`, `PYTHON_WHEEL_DIR`, `PYTHON_PIP` in `config.env` |
 
 **Adding more packages later:** see **`docs/ADDING-PACKAGES.md`** (RPM vs EPEL vs RPM Fusion vs wheel paths).
@@ -240,21 +226,17 @@ rhel-installer/
 │   └── ks.cfg.template
 ├── docker/
 │   └── Dockerfile.reposync
-├── scripts/                    # numbered so all fetch precedes prepare-usb
-│   ├── 01-reposync.sh
-│   ├── 02-fetch-epel-packages.sh
-│   ├── 02b-fetch-rpmfusion-packages.sh  # ffmpeg / media
-│   ├── 03-fetch-python-wheels.sh
-│   ├── 04-check-offline-deps.sh
-│   ├── 05-generate-kickstart.sh
-│   ├── 06-inject-kickstart.sh
-│   ├── 07-prepare-usb.sh              # first-time full write
-│   ├── 08-update-usb.sh               # incremental USB content/boot update
+├── scripts/
+│   ├── 01-fetch-offline-content.sh    # RHEL+EPEL+Fusion+wheels+check; stops Docker
+│   ├── 02-build-kickstart-iso.sh      # generate ks + inject ISO
+│   ├── 03-prepare-usb.sh              # first-time full write
+│   ├── 04-update-usb.sh               # incremental USB content/boot update
+│   ├── lib/                           # implementation helpers for 01–02
 │   ├── authorize-offline-usb.sh       # STIG: stop usbguard, allow HID/storage
 │   ├── update-target-repo-from-usb.sh # on target: USB → /var/lib/offline-repos
 │   ├── status-reposync.sh
-│   ├── copy-offline-mirror-from-usb.sh  # step 1: USB → local mirror
-│   └── install-from-local-mirror.sh     # step 2: packages from local disk
+│   ├── copy-offline-mirror-from-usb.sh  # target step 1: USB → local mirror
+│   └── install-from-local-mirror.sh     # target step 2: packages from local disk
 └── out/                        # offline-repo (BaseOS/AppStream/CRB/EPEL/RPMFusion/…), ISO, logs
 ```
 
@@ -263,5 +245,5 @@ rhel-installer/
 - Never commit `config.env` (activation keys, password hashes).
 - `chmod 600 config.env`
 - Treat the finished USB as sensitive (full OS content + errata + kickstart credentials).
-- Unregister/remove the reposync container when finished if you do not need re-syncs:  
-  `docker rm -f rhel8-reposync`
+- `01-fetch-offline-content.sh` removes the `rhel8-reposync` container when finished
+  (use `--keep-container` to leave it running).

@@ -139,23 +139,20 @@ python3.11 -m pip install --no-index \
 ### On the connected build host
 
 ```bash
-# 1) Refresh content as needed
-./scripts/01-reposync.sh                 # RHEL errata/packages
-./scripts/02-fetch-epel-packages.sh      # if epel-extra.txt changed
-./scripts/02b-fetch-rpmfusion-packages.sh  # if rpmfusion-extra.txt changed (ffmpeg, …)
-./scripts/03-fetch-python-wheels.sh      # if python-extra.txt changed
+# 1) Refresh offline content (RHEL + EPEL + RPM Fusion + wheels + dep check)
+./scripts/01-fetch-offline-content.sh
 
 # 2) Push to existing USB (keeps data partition; does not wipe stick)
-./scripts/08-update-usb.sh --repos --device /dev/sdb
+sudo ./scripts/04-update-usb.sh --repos --device /dev/sdb
 
 # Kickstart / helpers only (no RPM rsync; no partition writes):
-./scripts/05-generate-kickstart.sh
-sudo ./scripts/08-update-usb.sh --ks --device /dev/sdb
+./scripts/02-build-kickstart-iso.sh
+sudo ./scripts/04-update-usb.sh --ks --device /dev/sdb
 
 # Optional: mount writable EFI/ESP and refresh boot *files* only (never dd/GPT):
-sudo ./scripts/08-update-usb.sh --boot --device /dev/sdb
+sudo ./scripts/04-update-usb.sh --boot --device /dev/sdb
 # Full installer ISO replace (rewrites partitions — first-image path only):
-#   ./scripts/06-inject-kickstart.sh && sudo ./scripts/07-prepare-usb.sh --yes /dev/sdb
+#   ./scripts/02-build-kickstart-iso.sh && sudo ./scripts/03-prepare-usb.sh --yes /dev/sdb
 ```
 
 ### On the air-gapped target
@@ -178,15 +175,10 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator ind
 ## 6. Build-host pipeline (connected machine only)
 
 ```text
-01-reposync.sh
-02-fetch-epel-packages.sh
-02b-fetch-rpmfusion-packages.sh   # ffmpeg / media (RPM Fusion free+nonfree)
-03-fetch-python-wheels.sh
-04-check-offline-deps.sh      # optional
-05-generate-kickstart.sh
-06-inject-kickstart.sh
-07-prepare-usb.sh             # first-time full write only
-08-update-usb.sh              # later incremental USB updates
+01-fetch-offline-content.sh   # RHEL + EPEL + RPM Fusion + wheels + check; stops Docker
+02-build-kickstart-iso.sh     # generate ks.cfg + inject custom ISO
+03-prepare-usb.sh             # first-time full write only
+04-update-usb.sh              # later incremental USB updates
 ```
 
 ---
@@ -200,10 +192,10 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator ind
 | dnf tries to use network | `sudo enable-offline-repos.sh`; ensure only `offline-local*.repo` is enabled |
 | No packages found | `sudo offline-repo-status.sh`; confirm BaseOS/AppStream under `/var/lib/offline-repos` |
 | htop missing | EPEL tree must exist under local mirror |
-| ffmpeg missing | RPMFusion tree + `02b-fetch-rpmfusion-packages.sh`; check `offline-repo-status.sh` |
+| ffmpeg missing | RPMFusion tree + `01-fetch-offline-content.sh`; check `offline-repo-status.sh` |
 | pipx missing | `python-wheels/` under local mirror; use python3.11 |
 | Disk full on copy | Need ~35GB+ free on `/` (or set `LOCAL_REPO_ROOT` to a larger filesystem) |
 | GRUB kernel menu never times out | STIG often sets `GRUB_TIMEOUT=-1`. Run `sudo configure-grub-timeout.sh` then reboot |
-| Mount by label fails; only ~3G + ~20M parts | Offline-repo partition missing. `08-update-usb` never rewrites GPT — reimage: `sudo ./scripts/07-prepare-usb.sh --yes /dev/sdX` |
+| Mount by label fails; only ~3G + ~20M parts | Offline-repo partition missing. `04-update-usb` never rewrites GPT — reimage: `sudo ./scripts/03-prepare-usb.sh --yes /dev/sdX` |
 | Mount helper: label missing but UUID exists | `sudo mount-offline-usb.sh` probes UUID/PARTLABEL/content; or `mount -o ro UUID=… /mnt/rhel8offline` |
 

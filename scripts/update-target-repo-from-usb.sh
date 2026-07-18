@@ -55,8 +55,8 @@ if ! findmnt "$USB_MNT" >/dev/null 2>&1; then
   fi
   if [[ -z "$dev" ]]; then
     echo "ERROR: LABEL=$LABEL not found (and mount-offline-usb failed)." >&2
-    echo "If only ~3G+~20M partitions: reimage on build host with 07-prepare-usb" >&2
-    echo "(08-update-usb never rewrites partitions)." >&2
+    echo "If only ~3G+~20M partitions: reimage on build host with 03-prepare-usb" >&2
+    echo "(04-update-usb never rewrites partitions)." >&2
     lsblk -o NAME,SIZE,FSTYPE,LABEL,PARTLABEL,UUID,START; blkid || true
     exit 1
   fi

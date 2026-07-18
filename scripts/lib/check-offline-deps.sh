@@ -4,10 +4,10 @@
 #
 # Uses the registered rhel8-reposync container with file:// repos.
 # Keep lists in packages/{required,recommended,epel-extra}.txt — same as
-# install-from-local-mirror.sh / 05-generate-kickstart.sh.
+# install-from-local-mirror.sh / lib/generate-kickstart.sh.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -f "$ROOT/config.env" ]]; then
@@ -40,7 +40,7 @@ mapfile -t EPEL_PKGS < <(pkg_file_to_lines "$ROOT/packages/epel-extra.txt" | sor
 mapfile -t FUSION_PKGS < <(pkg_file_to_lines "$ROOT/packages/rpmfusion-extra.txt" | sort -u)
 
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
-  echo "Container $CONTAINER_NAME not running. Start with ./scripts/01-reposync.sh first." >&2
+  echo "Container $CONTAINER_NAME not running. Start with ./scripts/01-fetch-offline-content.sh first." >&2
   exit 1
 fi
 
@@ -58,14 +58,14 @@ if [[ -d "$REPO_DIR/EPEL/repodata" ]]; then
   HAVE_EPEL=1
 else
   echo "WARN: no EPEL/repodata — EPEL package checks will fail or be skipped."
-  echo "      Run: ./scripts/02-fetch-epel-packages.sh"
+  echo "      Run: ./scripts/01-fetch-offline-content.sh"
 fi
 HAVE_FUSION=0
 if [[ -d "$REPO_DIR/RPMFusion/repodata" ]]; then
   HAVE_FUSION=1
 else
   echo "WARN: no RPMFusion/repodata — Fusion package checks will be skipped."
-  echo "      Run: ./scripts/02b-fetch-rpmfusion-packages.sh"
+  echo "      Run: ./scripts/01-fetch-offline-content.sh"
 fi
 
 echo "==> Checking deps offline using only file:// repos under /repo"
@@ -159,8 +159,8 @@ check_set() {
   echo "      If incorrect checksum / missing RPM under BaseOS/AppStream:" >&2
   echo "        CDN metadata listed RPMs that newest-only reposync never downloaded." >&2
   echo "        Fix:  ./scripts/rebuild-offline-repodata.sh" >&2
-  echo "        (or re-run 01-reposync.sh which now rebuilds repodata after sync)" >&2
-  echo "      Else: 01-reposync / 02-epel / 02b-rpmfusion / CRB as needed." >&2
+  echo "        (or re-run ./scripts/01-fetch-offline-content.sh / lib/rebuild-offline-repodata.sh)" >&2
+  echo "      Else: re-run ./scripts/01-fetch-offline-content.sh (needs network + subscription)." >&2
   return 1
 }
 

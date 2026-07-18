@@ -108,8 +108,8 @@ if [[ -z "${DEV}" ]]; then
   echo >&2
   echo "If you only see ~3G boot + ~20M EFI (no multi-GB data part):" >&2
   echo "  Offline-repo partition entry is missing (bad GPT / incomplete first image)." >&2
-  echo "  08-update-usb never rewrites partitions. On the *build host* reimage:" >&2
-  echo "    sudo ./scripts/07-prepare-usb.sh --yes /dev/sdX" >&2
+  echo "  04-update-usb never rewrites partitions. On the *build host* reimage:" >&2
+  echo "    sudo ./scripts/03-prepare-usb.sh --yes /dev/sdX" >&2
   echo >&2
   echo "If a multi-GB ext4 is present but unlabeled:" >&2
   echo "    sudo mount /dev/sdXN $MNT" >&2

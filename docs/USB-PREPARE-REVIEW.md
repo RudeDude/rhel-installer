@@ -1,46 +1,35 @@
-# Step 07 — USB write review (`/dev/sdb`)
+# USB prepare review
 
-Run this **after** all fetch + kickstart steps:
+## Pipeline (build host)
 
 ```text
-01-reposync.sh
-02-fetch-epel-packages.sh
-03-fetch-python-wheels.sh
-04-check-offline-deps.sh      # optional
-05-generate-kickstart.sh
-06-inject-kickstart.sh
-07-prepare-usb.sh             # this step
+01-fetch-offline-content.sh   # RHEL + EPEL + RPM Fusion + wheels + dep check; stops Docker
+02-build-kickstart-iso.sh     # generate ks + inject ISO
+03-prepare-usb.sh             # this step (first full write)
+04-update-usb.sh              # later incremental updates
 ```
 
 ## Script
 
-`scripts/07-prepare-usb.sh`
+`scripts/03-prepare-usb.sh`
 
-## What is written
+Writes the hybrid installer + offline data partition (`LABEL=RHEL8OFFLINE`).
 
-1. Custom (or stock) isohybrid installer ISO to the start of the USB  
-2. Large ext4 partition `LABEL=RHEL8OFFLINE` containing:
-   - `BaseOS/`, `AppStream/`, `CodeReadyBuilder/`
-   - `EPEL/` (required extras)
-   - `python-wheels/` (pipx + deps)
-   - `packages/*.txt`
-   - `docs/` including **`OFFLINE-INSTALL.md`**
-   - `scripts/` (all target helpers: post-install, authorize, update, install-airgap-helpers, …)
-   - `docs/ROOT-HOME-README.md` (becomes `/root/README.md` on target)
-   - `ks/ks.cfg`
-   - `README-ON-MEDIA.txt` / root `OFFLINE-INSTALL.md`
+Includes:
 
-## Review (no write)
+- BaseOS / AppStream / CodeReadyBuilder / EPEL / RPMFusion / python-wheels
+- `packages/`, `docs/`, target `scripts/`, `ks/ks.cfg`
+- `docs/ROOT-HOME-README.md` (becomes `/root/README.md` on target)
+
+## Dry-run
 
 ```bash
-./scripts/07-prepare-usb.sh --dry-run /dev/sdb
+./scripts/03-prepare-usb.sh --dry-run /dev/sdb
 ```
 
-## Destructive write
+## Write
 
 ```bash
-sudo ./scripts/07-prepare-usb.sh /dev/sdb
-# type YES
+sudo ./scripts/03-prepare-usb.sh /dev/sdb
+# type YES when prompted
 ```
-
-See also `docs/OFFLINE-INSTALL.md` (copied onto the stick for air-gapped use).

@@ -13,7 +13,7 @@
 #   ./scripts/rebuild-offline-repodata.sh BaseOS AppStream
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -f "$ROOT/config.env" ]]; then
@@ -88,4 +88,4 @@ else
 fi
 
 echo
-echo "Done. Re-run: ./scripts/04-check-offline-deps.sh"
+echo "Done. Re-run: ./scripts/01-fetch-offline-content.sh --only-check"

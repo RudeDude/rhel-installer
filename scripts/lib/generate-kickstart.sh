@@ -2,7 +2,7 @@
 # Build out/ks.cfg from template + package lists + config.env
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -f "$ROOT/config.env" ]]; then
@@ -217,4 +217,4 @@ echo "  Partitioning: $([[ "$KS_CLEARPART_ALL" == "yes" ]] && echo automated || 
 echo "  FIPS: $KS_ENABLE_FIPS  GUI:%post=$KS_WANT_GUI"
 echo "  Post packages: ${#PKG_ARR[@]}"
 echo "  Staged ${#TARGET_SCRIPTS[@]} helpers + docs into $REPO_OUT/{scripts,docs,packages}"
-echo "Next: ./scripts/06-inject-kickstart.sh"
+echo "Done generating ks.cfg"

@@ -3,7 +3,7 @@
 # Uses the existing registered rhel8-reposync container when available.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -f "$ROOT/config.env" ]]; then
@@ -36,12 +36,12 @@ mkdir -p "$EPEL_DIR/Packages"
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   echo "Container $CONTAINER_NAME is not running." >&2
   echo "Start a registered sync environment first:" >&2
-  echo "  ./scripts/01-reposync.sh" >&2
+  echo "  ./scripts/01-fetch-offline-content.sh" >&2
   echo "(You can Ctrl-C after registration/tools install if a full reposync is not needed, or leave it running.)" >&2
   exit 1
 fi
 
-# Ensure container can see REPO_DIR (same bind mount as 01-reposync)
+# Ensure container can see REPO_DIR (same bind mount as lib/reposync)
 docker exec -u 0 "$CONTAINER_NAME" bash -lc '
   set -euo pipefail
   dnf -y install dnf-plugins-core createrepo_c 2>/dev/null || true
@@ -71,8 +71,8 @@ docker exec -u 0 "$CONTAINER_NAME" bash -lc "
 
 echo
 echo "Done. Offline EPEL content: $EPEL_DIR"
-echo "Next: ./scripts/02b-fetch-rpmfusion-packages.sh   # ffmpeg / media (optional but recommended)"
-echo "Then: ./scripts/03-fetch-python-wheels.sh"
-echo "Then: ./scripts/04-check-offline-deps.sh   # optional"
-echo "Then: ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
-echo "Then: sudo ./scripts/07-prepare-usb.sh /dev/sdb"
+echo "Next: ./scripts/01-fetch-offline-content.sh   # ffmpeg / media (optional but recommended)"
+echo "Then: ./scripts/01-fetch-offline-content.sh"
+echo "Then: ./scripts/01-fetch-offline-content.sh --only-check   # optional"
+echo "Then: ./scripts/02-build-kickstart-iso.sh && ./scripts/02-build-kickstart-iso.sh"
+echo "Then: sudo ./scripts/03-prepare-usb.sh /dev/sdb"

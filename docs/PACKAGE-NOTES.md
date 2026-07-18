@@ -9,7 +9,7 @@
 | jq | `jq` |
 | python 3 + pip | `python3`, `python3-pip`, `python3-setuptools` |
 | python 3.11 (for pipx) | `python3.11`, `python3.11-pip`, `python3.11-setuptools` |
-| pipx | **No RPM** — staged as **wheels** via `packages/python-extra.txt` + `./scripts/03-fetch-python-wheels.sh` |
+| pipx | **No RPM** — staged as **wheels** via `packages/python-extra.txt` + `./scripts/01-fetch-offline-content.sh` |
 | tcpdump | `tcpdump` |
 | java 8 | `java-1.8.0-openjdk` (+ `-devel` / `-headless` as needed) |
 | java 11 | `java-11-openjdk` (+ `-devel` / `-headless`) |
@@ -32,7 +32,7 @@
 | pv | **`pv` — EPEL 8 only** (pipe viewer) |
 | pipx | **No RPM** on RHEL 8 / EPEL 8. **Pre-stage wheels** (`python-extra.txt` → `out/offline-repo/python-wheels/`). Install with `python3.11 -m pip install --no-index --find-links=…`. |
 | ntpdate | **Removed** — not in RHEL 8; use `chrony` / `chronyc`. |
-| ffmpeg | **RPM Fusion free** — `packages/rpmfusion-extra.txt` + `./scripts/02b-fetch-rpmfusion-packages.sh` |
+| ffmpeg | **RPM Fusion free** — `packages/rpmfusion-extra.txt` + `./scripts/01-fetch-offline-content.sh` |
 | gstreamer1-plugins-base/good | RHEL AppStream — `packages/recommended.txt` |
 | gstreamer1-plugins-ugly / libav | **RPM Fusion** — `packages/rpmfusion-extra.txt` |
 | gstreamer1-plugins-bad-nonfree | **RPM Fusion nonfree** — same list/script |
@@ -62,13 +62,13 @@ You do **not** need a separate “updates” repo for RHEL 8 the way RHEL 7 had 
 
 ## Optional EPEL
 
-EPEL is **not** covered by Red Hat subscription repos. Do **not** expect `htop` / `nload` from the main `01-reposync.sh` trees.
+EPEL is **not** covered by Red Hat subscription repos. Do **not** expect `htop` / `nload` from the RHEL reposync portion of `01-fetch-offline-content.sh` alone (that script also fetches EPEL when run fully).
 
 Targeted fetch (recommended):
 
 ```bash
 # edit packages/epel-extra.txt then:
-./scripts/02-fetch-epel-packages.sh
+./scripts/01-fetch-offline-content.sh
 ```
 
 That builds `out/offline-repo/EPEL/` with resolved dependencies (much smaller than mirroring all of EPEL).

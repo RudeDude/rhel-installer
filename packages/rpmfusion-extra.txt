@@ -1,10 +1,10 @@
 # Packages from RPM Fusion (EL8 free + nonfree) for air-gap use.
-# Fetched with: ./scripts/02b-fetch-rpmfusion-packages.sh
+# Fetched with: ./scripts/01-fetch-offline-content.sh
 # Staged under: out/offline-repo/RPMFusion/
 #
 # Prerequisites on the build host container:
-#   ./scripts/01-reposync.sh   # RHEL + CRB
-#   ./scripts/02-fetch-epel-packages.sh   # EPEL (RPM Fusion depends on EPEL)
+#   ./scripts/01-fetch-offline-content.sh   # RHEL + CRB
+#   ./scripts/01-fetch-offline-content.sh   # EPEL (RPM Fusion depends on EPEL)
 #
 # Confirm names: dnf search <name>  (with rpmfusion-free / rpmfusion-nonfree enabled)
 #

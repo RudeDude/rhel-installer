@@ -1,5 +1,5 @@
 # Python packages to stage as wheels for offline pip install.
-# Fetched with: ./scripts/03-fetch-python-wheels.sh
+# Fetched with: ./scripts/01-fetch-offline-content.sh
 #
 # The fetch script ALWAYS downloads the full dependency tree (never --no-deps),
 # then verifies offline install with:

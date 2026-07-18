@@ -7,7 +7,7 @@
 # Preserves volume label (required for inst.stage2) and FIPS/STIG kernel args.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -f "$ROOT/config.env" ]]; then
@@ -28,7 +28,7 @@ if [[ ! -f "$SOURCE_ISO" ]]; then
   exit 1
 fi
 if [[ ! -f "$KS_IN" ]]; then
-  echo "Kickstart not found: $KS_IN — run ./scripts/05-generate-kickstart.sh first" >&2
+  echo "Kickstart not found: $KS_IN — run ./scripts/02-build-kickstart-iso.sh first" >&2
   exit 1
 fi
 command -v xorriso >/dev/null 2>&1 || { echo "xorriso required"; exit 1; }
@@ -56,9 +56,9 @@ fi
 
 # Where Anaconda loads kickstart from (see KS_BOOT_SOURCE in config.env):
 #   data (default) — LABEL=RHEL8OFFLINE:/ks/ks.cfg on the *ext4 offline* partition.
-#                    Update with 08-update-usb --repos or --ks only (no ISO dd).
+#                    Update with 04-update-usb --repos or --ks only (no ISO dd).
 #   iso            — LABEL=<ISO volume>:/ks/ks.cfg inside the isohybrid image
-#                    (ks changes need 07-prepare-usb reimage; ISO9660 not writable)
+#                    (ks changes need 03-prepare-usb reimage; ISO9660 not writable)
 #   both           — data first; also keep a copy inside the ISO image
 USB_REPO_LABEL="${USB_REPO_LABEL:-RHEL8OFFLINE}"
 KS_BOOT_SOURCE="${KS_BOOT_SOURCE:-data}"
@@ -172,8 +172,8 @@ echo "  Kickstart on ISO image: /ks/ks.cfg (and osbuild.ks if present)"
 echo "  Boot inst.ks= : $KS_HD  (KS_BOOT_SOURCE=$KS_BOOT_SOURCE)"
 if [[ "$KS_BOOT_SOURCE" == "data" || "$KS_BOOT_SOURCE" == "both" ]]; then
   echo "  → After USB is built, update kickstart with:"
-  echo "      ./scripts/05-generate-kickstart.sh"
-  echo "      sudo ./scripts/08-update-usb.sh --ks --device /dev/sdX"
+  echo "      ./scripts/02-build-kickstart-iso.sh"
+  echo "      sudo ./scripts/04-update-usb.sh --ks --device /dev/sdX"
   echo "    (no --boot / no ISO rewrite for ks-only changes)"
 fi
-echo "Next (first time): sudo ./scripts/07-prepare-usb.sh /dev/sdX"
+echo "Next (first time): sudo ./scripts/03-prepare-usb.sh /dev/sdX"

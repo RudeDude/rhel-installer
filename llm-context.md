@@ -7,7 +7,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 - **Base:** Image Builder **liveimg** ISO (`rhel-8.10-fips-stig.iso`), not a package DVD. Rootfs from `liveimg.tar.gz`; extras/errata from USB offline tree.
 - **USB:** two-region — (1) isohybrid installer at start, (2) ext4 `LABEL=RHEL8OFFLINE` for BaseOS/AppStream/CRB/EPEL/wheels/docs/scripts.
 - **Do not** rebuild multi‑GB package ISO for errata; rsync repos to data partition.
-- **Pipeline order (fetch-first):** `01-reposync` → `02-epel` → `02b-rpmfusion` → `03-wheels` → `04-check` → `05-ks` → `06-inject` → `07-prepare-usb` → `08-update-usb`.
+- **Pipeline order:** `01-fetch-offline-content` (RHEL+EPEL+Fusion+wheels+check; stops Docker) → `02-build-kickstart-iso` → `03-prepare-usb` → `04-update-usb`. Helpers under `scripts/lib/`.
 - **Target helpers only** (not 01–08): listed in `scripts/target-scripts.list`. Install path: single `install-airgap-helpers.sh`.
 
 ## Design decisions
@@ -26,7 +26,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 | dnf offline | Prefer local `file:///var/lib/offline-repos`; fall back USB. RHSM noise expected offline — disable plugin / `repos --disable='*'` |
 | USB STIG policy | Stop/disable USBGuard for air-gap workflow (not mask); authorize HID+storage |
 | GRUB | STIG often `GRUB_TIMEOUT=-1` (forever); force positive timeout via `configure-grub-timeout.sh` (default 5s, `KS_GRUB_TIMEOUT`) |
-| Incremental updates | Build: `08-update-usb.sh`; target: `update-target-repo-from-usb.sh` (rsync + reinstall helpers) |
+| Incremental updates | Build: `04-update-usb.sh`; target: `update-target-repo-from-usb.sh` (rsync + reinstall helpers) |
 | Config secrets | `config.env` (gitignored); example is `config.env.example` |
 
 ## Confirmed findings (target STIG/FIPS)
@@ -35,8 +35,8 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 2. **No USB keyboard** until same authorize path (need `usbhid`).
 3. **GRUB menu never auto-boots** — `GRUB_TIMEOUT=-1` / recordfail; fix with `configure-grub-timeout.sh`.
 4. **Hybrid USB partition** — isohybrid embeds GPT only spanning ~ISO size; data partition after ISO needs `sgdisk -e` (fix GPT) then create ext4 labeled `RHEL8OFFLINE`. Using parted alone / wrong type broke layout (“Invalid partition data”).
-5. **`08-update-usb` is mount-only** — never dd, never sgdisk -n/parted, never mkfs, never GPT repair. Updates data partition via mount+rsync; `--boot` only mounts existing small vfat ESP and copies files. ISO9660 hybrid body is RO → full installer image replace = **07-prepare-usb only**. Lost data partition entry → 07 (not 08).
-6. **Kickstart updates:** Default `KS_BOOT_SOURCE=data` → `inst.ks=hd:LABEL=RHEL8OFFLINE:/ks/ks.cfg`. `05-generate` + `08 --ks`. No boot rewrite for ks.
+5. **`04-update-usb` is mount-only** — never dd, never sgdisk -n/parted, never mkfs, never GPT repair. Updates data partition via mount+rsync; `--boot` only mounts existing small vfat ESP and copies files. ISO9660 hybrid body is RO → full installer image replace = **03-prepare-usb only**. Lost data partition entry → 07 (not 08).
+6. **Kickstart updates:** Default `KS_BOOT_SOURCE=data` → `inst.ks=hd:LABEL=RHEL8OFFLINE:/ks/ks.cfg`. `02-build-kickstart-iso` + `04-update-usb --ks`. No boot rewrite for ks.
 7. **Repos sizes (approx):** RHEL newest-only ~31G; EPEL selected ~148M; wheels ~3.3M.
 
 ## Bugs / pitfalls fixed (build host)
@@ -54,7 +54,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 ## Key paths
 
 ```
-scripts/01–08*.sh          build host
+scripts/01–04*.sh          build host (lib/ holds substeps)
 scripts/target-scripts.list
 scripts/install-airgap-helpers.sh
 scripts/copy-offline-mirror-from-usb.sh
@@ -77,7 +77,7 @@ out/offline-repo/          staged mirror + scripts/docs/packages
 
 ## Gaps / resume work
 
-- Re-test full install after GRUB + early-helper embed changes (`06-inject` + `08-update-usb --all` or re-`07`).
+- Re-test full install after GRUB + early-helper embed changes (`02-build-kickstart-iso` + `04-update-usb` or re-`03-prepare-usb`).
 - Existing installed systems: run `configure-grub-timeout.sh` + `install-airgap-helpers.sh` from USB if media updated.
 - `config.env` may lack `KS_GRUB_TIMEOUT` (05 defaults to 5).
 - Keep package lists in sync: `packages/*.txt` vs hard-coded dnf lists in `install-from-local-mirror.sh` / `%post` package list from 05.

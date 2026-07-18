@@ -2,7 +2,7 @@
 # Sync RHEL 8 BaseOS + AppStream (+ CRB) to ./out/offline-repo using a registered container.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -f "$ROOT/config.env" ]]; then
@@ -77,6 +77,8 @@ cleanup() {
   echo "==> Leaving container '$CONTAINER_NAME' running for debugging."
   echo "    Stop with: docker rm -f $CONTAINER_NAME"
 }
+# Leave container running for follow-on EPEL/Fusion steps when called from
+# 01-fetch-offline-content.sh (that script removes the container at the end).
 trap cleanup EXIT
 
 echo "==> Registering subscription inside container"
@@ -247,6 +249,6 @@ du -sh "$REPO_DIR"/* 2>/dev/null || du -sh "$REPO_DIR"
 
 echo
 echo "DONE. Offline repo at: $REPO_DIR"
-echo "Next: ./scripts/02-fetch-epel-packages.sh"
-echo "      ./scripts/02b-fetch-rpmfusion-packages.sh   # ffmpeg / media from RPM Fusion"
-echo "      ./scripts/03-fetch-python-wheels.sh"
+echo "Next: ./scripts/01-fetch-offline-content.sh"
+echo "      ./scripts/01-fetch-offline-content.sh   # ffmpeg / media from RPM Fusion"
+echo "      ./scripts/01-fetch-offline-content.sh"

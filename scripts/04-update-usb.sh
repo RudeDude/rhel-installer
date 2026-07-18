@@ -5,23 +5,23 @@
 # Only mounts existing filesystems and copies/rsyncs files.
 #
 # Usage (build host):
-#   ./scripts/08-update-usb.sh                  # full repo tree on data partition (default)
-#   ./scripts/08-update-usb.sh --repos
-#   ./scripts/08-update-usb.sh --ks             # kickstart + scripts/docs only
-#   ./scripts/08-update-usb.sh --boot           # update *writable* boot files via mount (EFI FAT)
-#   ./scripts/08-update-usb.sh --all            # --boot + --repos
-#   ./scripts/08-update-usb.sh --device /dev/sdb
-#   ./scripts/08-update-usb.sh --dry-run
+#   ./scripts/04-update-usb.sh                  # full repo tree on data partition (default)
+#   ./scripts/04-update-usb.sh --repos
+#   ./scripts/04-update-usb.sh --ks             # kickstart + scripts/docs only
+#   ./scripts/04-update-usb.sh --boot           # update *writable* boot files via mount (EFI FAT)
+#   ./scripts/04-update-usb.sh --all            # --boot + --repos
+#   ./scripts/04-update-usb.sh --device /dev/sdb
+#   ./scripts/04-update-usb.sh --dry-run
 #
-# Partition layout is owned solely by 07-prepare-usb.sh (first image).
+# Partition layout is owned solely by 03-prepare-usb.sh (first image).
 # If the multi-GB data partition is missing from the table, re-run 07 (or fix
 # GPT manually) — this script will refuse rather than create partitions.
 #
 # Kickstart (KS_BOOT_SOURCE=data): lives on LABEL=RHEL8OFFLINE as ks/ks.cfg.
-#   ./scripts/05-generate-kickstart.sh && sudo $0 --ks --device /dev/sdX
+#   ./scripts/02-build-kickstart-iso.sh && sudo $0 --ks --device /dev/sdX
 #
 # ISO9660 hybrid image content is read-only when mounted; full installer image
-# replacement requires 07-prepare-usb.sh (not this script).
+# replacement requires 03-prepare-usb.sh (not this script).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -69,10 +69,10 @@ This script does NOT:
   - run sgdisk/parted to create or resize partitions
   - mkfs any volume
 
-First-time layout / broken GPT:  sudo ./scripts/07-prepare-usb.sh /dev/sdX
+First-time layout / broken GPT:  sudo ./scripts/03-prepare-usb.sh /dev/sdX
 
 Kickstart-only (data partition, preferred):
-  ./scripts/05-generate-kickstart.sh
+  ./scripts/02-build-kickstart-iso.sh
   sudo $0 --ks --device /dev/sdX
 
 Examples:
@@ -90,9 +90,9 @@ while [[ $# -gt 0 ]]; do
     --boot) DO_BOOT=1; DO_REPOS=0; DO_KS_ONLY=0; shift ;;
     --all) DO_BOOT=1; DO_REPOS=1; DO_KS_ONLY=0; shift ;;
     --repair-gpt|--dd-boot|--reimage)
-      echo "ERROR: $1 is not supported by 08-update-usb.sh" >&2
+      echo "ERROR: $1 is not supported by 04-update-usb.sh" >&2
       echo "This script never rewrites partition tables or dd's the disk." >&2
-      echo "Use: sudo ./scripts/07-prepare-usb.sh --yes /dev/sdX" >&2
+      echo "Use: sudo ./scripts/03-prepare-usb.sh --yes /dev/sdX" >&2
       exit 2
       ;;
     --device) DEVICE="$2"; shift 2 ;;
@@ -220,7 +220,7 @@ mount_data_part() {
     echo >&2
     echo "If you only see ~3G + ~20M hybrid slices, the offline-repo entry is gone." >&2
     echo "Recover with a full reimage (rewrites partitions):" >&2
-    echo "  sudo ./scripts/07-prepare-usb.sh --yes $DEVICE" >&2
+    echo "  sudo ./scripts/03-prepare-usb.sh --yes $DEVICE" >&2
     exit 1
   fi
 
@@ -232,7 +232,7 @@ mount_data_part() {
   fi
   fstype="$(blkid -o value -s TYPE "$PART" 2>/dev/null || true)"
   if [[ -z "$fstype" ]]; then
-    echo "ERROR: $PART has no filesystem. Reimage with 07-prepare-usb.sh (this script never mkfs)." >&2
+    echo "ERROR: $PART has no filesystem. Reimage with 03-prepare-usb.sh (this script never mkfs)." >&2
     exit 1
   fi
 
@@ -261,7 +261,7 @@ refresh_operator_files() {
     cp -a "$ROOT/out/ks.cfg" "$MNT/ks/ks.cfg"
     echo "    ks/ks.cfg ($(wc -c < "$MNT/ks/ks.cfg") bytes)"
   else
-    echo "WARN: out/ks.cfg missing — run ./scripts/05-generate-kickstart.sh" >&2
+    echo "WARN: out/ks.cfg missing — run ./scripts/02-build-kickstart-iso.sh" >&2
   fi
   if [[ -f "$ROOT/scripts/target-scripts.list" ]]; then
     cp -a "$ROOT/scripts/target-scripts.list" "$MNT/scripts/"
@@ -281,7 +281,7 @@ refresh_operator_files() {
   [[ -f "$ROOT/docs/OFFLINE-INSTALL.md" ]] && cp -a "$ROOT/docs/OFFLINE-INSTALL.md" "$MNT/OFFLINE-INSTALL.md"
   [[ -f "$ROOT/README.md" ]] && cp -a "$ROOT/README.md" "$MNT/docs/PROJECT-README.md"
   cat > "$MNT/README-ON-MEDIA.txt" <<EOF
-Air-gap media (content updated $(date -Is) via 08-update-usb — mount only)
+Air-gap media (content updated $(date -Is) via 04-update-usb — mount only)
 Label: $USB_REPO_LABEL
 Kickstart: ks/ks.cfg
 
@@ -306,7 +306,7 @@ update_boot_files_via_mount() {
 
   local name size p ft bmnt updated=0 ro_iso=0
   local src=""
-  # Prefer already-extracted tree from 06-inject; else extract needed files from OUT_ISO
+  # Prefer already-extracted tree from 02-build-kickstart-iso / lib/inject; else extract needed files from OUT_ISO
   if [[ -d "$ISO_EXTRACT/EFI" || -d "$ISO_EXTRACT/isolinux" ]]; then
     src="$ISO_EXTRACT"
     echo "    Source tree: $src"
@@ -323,7 +323,7 @@ update_boot_files_via_mount() {
     xorriso -osirrox on -indev "$OUT_ISO" -extract / "$src/full" 2>/dev/null || true
   else
     echo "WARN: no ISO extract and no OUT_ISO/xorriso — cannot refresh boot files" >&2
-    echo "      Run ./scripts/06-inject-kickstart.sh first, or skip --boot" >&2
+    echo "      Run ./scripts/02-build-kickstart-iso.sh first, or skip --boot" >&2
     return 0
   fi
 
@@ -341,7 +341,7 @@ update_boot_files_via_mount() {
       if mount -o ro "$p" "$bmnt" 2>/dev/null; then
         echo "    $p ($ft): mounted read-only — ISO hybrid content cannot be updated in place"
         if [[ -f "$bmnt/ks/ks.cfg" ]]; then
-          echo "      (has ks/ks.cfg inside ISO image; change requires 07-prepare-usb reimage)"
+          echo "      (has ks/ks.cfg inside ISO image; change requires 03-prepare-usb reimage)"
         fi
         umount "$bmnt" 2>/dev/null || umount -l "$bmnt" 2>/dev/null || true
       fi
@@ -423,8 +423,8 @@ update_boot_files_via_mount() {
     echo "==> No writable boot files updated"
     if [[ "$ro_iso" -eq 1 ]]; then
       echo "    Hybrid installer body is ISO9660 (read-only). To replace it:"
-      echo "      ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
-      echo "      sudo ./scripts/07-prepare-usb.sh --yes $DEVICE"
+      echo "      ./scripts/02-build-kickstart-iso.sh && ./scripts/02-build-kickstart-iso.sh"
+      echo "      sudo ./scripts/03-prepare-usb.sh --yes $DEVICE"
     fi
     echo "    Kickstart for installs should live on the data partition (use --ks)."
   fi
@@ -439,7 +439,7 @@ fi
 
 if [[ "$DO_REPOS" -eq 1 ]]; then
   if [[ ! -d "$REPO_DIR/BaseOS" ]]; then
-    echo "ERROR: missing $REPO_DIR/BaseOS — run 01-reposync first" >&2
+    echo "ERROR: missing $REPO_DIR/BaseOS — run ./scripts/01-fetch-offline-content.sh first" >&2
     exit 1
   fi
   mount_data_part
@@ -460,7 +460,7 @@ if [[ "$DO_KS_ONLY" -eq 1 ]]; then
   umount_data_part
   echo "==> Kickstart/helpers updated on data partition"
   echo "    Installer should use: inst.ks=hd:LABEL=$USB_REPO_LABEL:/ks/ks.cfg"
-  echo "    (KS_BOOT_SOURCE=data in 06-inject; no boot rewrite needed for ks changes)"
+  echo "    (KS_BOOT_SOURCE=data in 02-build-kickstart-iso; no boot rewrite needed for ks changes)"
   PART="$(find_data_part "$DEVICE" "$USB_REPO_LABEL" || true)"
   [[ -n "$PART" ]] && blkid "$PART" || true
 fi
@@ -469,4 +469,4 @@ echo
 echo "DONE. Layout (unchanged partition table):"
 lsblk -o NAME,SIZE,FSTYPE,LABEL,PARTLABEL,UUID,MOUNTPOINT "$DEVICE" || true
 echo
-echo "Reminder: 08-update-usb never writes partitions. Broken layout → 07-prepare-usb."
+echo "Reminder: 04-update-usb never writes partitions. Broken layout → 03-prepare-usb."

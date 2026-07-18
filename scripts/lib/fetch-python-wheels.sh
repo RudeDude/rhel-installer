@@ -19,7 +19,7 @@
 #   python3.11 -m pip install --no-index --find-links=<wheel-dir> -r <wheel-dir>/requirements.txt
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -f "$ROOT/config.env" ]]; then
@@ -333,8 +333,8 @@ On the installed system (USB mounted at e.g. /mnt/rhel8offline):
 
 Rebuild/update on a connected host:
   edit packages/python-extra.txt
-  ./scripts/03-fetch-python-wheels.sh
-  # then re-run ./scripts/07-prepare-usb.sh (or rsync python-wheels/ onto the USB)
+  ./scripts/01-fetch-offline-content.sh
+  # then re-run ./scripts/03-prepare-usb.sh (or rsync python-wheels/ onto the USB)
 EOF
 
 echo
@@ -345,7 +345,7 @@ echo "Count: $ARTIFACTS artifacts"
 du -sh "$WHEEL_DIR"
 echo
 echo "DONE. Full dependency tree staged under $WHEEL_DIR"
-echo "Next: ./scripts/04-check-offline-deps.sh   # optional (RPMs)"
-echo "Then: ./scripts/05-generate-kickstart.sh && ./scripts/06-inject-kickstart.sh"
-echo "Then: sudo ./scripts/07-prepare-usb.sh /dev/sdb"
+echo "Next: ./scripts/01-fetch-offline-content.sh --only-check   # optional (RPMs)"
+echo "Then: ./scripts/02-build-kickstart-iso.sh && ./scripts/02-build-kickstart-iso.sh"
+echo "Then: sudo ./scripts/03-prepare-usb.sh /dev/sdb"
 echo "Re-fetch anytime after editing $PKG_FILE"

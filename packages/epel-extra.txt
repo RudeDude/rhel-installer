@@ -1,11 +1,11 @@
 # Packages that are NOT in RHEL BaseOS/AppStream/CRB and need EPEL 8.
-# Fetched with: ./scripts/02-fetch-epel-packages.sh
+# Fetched with: ./scripts/01-fetch-offline-content.sh
 # Installed offline from out/offline-repo/EPEL when that tree is on the USB.
 #
 # Confirm names on a registered host:  dnf search <name>  (with epel enabled)
 #
 # Python packages that are not RPMs (e.g. pipx) go in packages/python-extra.txt
-# and are staged as wheels via ./scripts/03-fetch-python-wheels.sh
+# and are staged as wheels via ./scripts/01-fetch-offline-content.sh
 
 # Admin / monitoring
 htop
@@ -18,4 +18,4 @@ keepassxc
 # Classic RDP client (optional; freerdp/xfreerdp is already in required.txt from AppStream)
 rdesktop
 
-# Media codecs (ffmpeg, etc.) → packages/rpmfusion-extra.txt + ./scripts/02b-fetch-rpmfusion-packages.sh
+# Media codecs (ffmpeg, etc.) → packages/rpmfusion-extra.txt + ./scripts/01-fetch-offline-content.sh

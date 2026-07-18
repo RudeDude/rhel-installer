@@ -3,10 +3,10 @@
 # Uses the registered rhel8-reposync container (same as 01/02).
 #
 # Order:
-#   01-reposync.sh
-#   02-fetch-epel-packages.sh     # EPEL required as dep source for many Fusion packages
-#   02b-fetch-rpmfusion-packages.sh
-#   03-fetch-python-wheels.sh
+#   01-fetch-offline-content.sh / lib/reposync.sh
+#   lib/fetch-epel.sh     # EPEL required as dep source for many Fusion packages
+#   01-fetch-offline-content.sh
+#   lib/fetch-python-wheels.sh
 #
 # Env:
 #   REPO_DIR              default out/offline-repo
@@ -16,7 +16,7 @@
 #   RPMFUSION_SKIP_NONFREE=1  only enable free repo
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -f "$ROOT/config.env" ]]; then
@@ -52,8 +52,8 @@ mkdir -p "$FUSION_DIR/Packages"
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   echo "Container $CONTAINER_NAME is not running." >&2
   echo "Start a registered sync environment first:" >&2
-  echo "  ./scripts/01-reposync.sh" >&2
-  echo "Then preferably: ./scripts/02-fetch-epel-packages.sh  (EPEL deps for Fusion)" >&2
+  echo "  ./scripts/01-fetch-offline-content.sh" >&2
+  echo "Then preferably: ./scripts/01-fetch-offline-content.sh  (EPEL deps for Fusion)" >&2
   exit 1
 fi
 
@@ -152,6 +152,6 @@ docker exec -u 0 "$CONTAINER_NAME" bash -lc "
 
 echo
 echo "Done. Offline RPM Fusion content: $FUSION_DIR"
-echo "Next: ./scripts/03-fetch-python-wheels.sh"
-echo "      ./scripts/04-check-offline-deps.sh   # optional"
-echo "Then stage USB: sudo ./scripts/08-update-usb.sh --repos --device /dev/sdX"
+echo "Next: ./scripts/01-fetch-offline-content.sh"
+echo "      ./scripts/01-fetch-offline-content.sh --only-check   # optional"
+echo "Then stage USB: sudo ./scripts/04-update-usb.sh --repos --device /dev/sdX"

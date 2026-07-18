@@ -73,13 +73,11 @@ Repo file: `/etc/yum.repos.d/offline-local.repo`
 **Build host** (internet):
 
 ```bash
-./scripts/01-reposync.sh              # as needed
-./scripts/02-fetch-epel-packages.sh
-./scripts/03-fetch-python-wheels.sh
-sudo ./scripts/08-update-usb.sh --repos --device /dev/sdX
+./scripts/01-fetch-offline-content.sh              # as needed (stops Docker when done)
+sudo ./scripts/04-update-usb.sh --repos --device /dev/sdX
 # kickstart/helpers only (no partition writes):
-# ./scripts/05-generate-kickstart.sh && sudo ./scripts/08-update-usb.sh --ks --device /dev/sdX
-# full installer reimage (only if hybrid ISO must change): 07-prepare-usb.sh
+# ./scripts/02-build-kickstart-iso.sh && sudo ./scripts/04-update-usb.sh --ks --device /dev/sdX
+# full installer reimage (only if hybrid ISO must change): 03-prepare-usb.sh
 ```
 
 **Target**:
@@ -199,7 +197,7 @@ Also on USB root: `OFFLINE-INSTALL.md`, `README-ON-MEDIA.txt`.
 | Disk full during copy | Free ~35GB+ or `LOCAL_REPO_ROOT=/big/fs` |
 | Helpers/docs missing | `sudo install-airgap-helpers.sh /var/lib/offline-repos` (or USB path) |
 | GRUB kernel menu never auto-boots | STIG often sets `GRUB_TIMEOUT=-1`. Run: `sudo configure-grub-timeout.sh` (default 5s), then reboot |
-| `mount -L RHEL8OFFLINE` fails; only small parts | Offline-repo partition missing. Build host: reimage with `07-prepare-usb` (08 never rewrites partitions). Or mount UUID from `blkid` |
+| `mount -L RHEL8OFFLINE` fails; only small parts | Offline-repo partition missing. Build host: reimage with `03-prepare-usb` (08 never rewrites partitions). Or mount UUID from `blkid` |
 
 ---
 

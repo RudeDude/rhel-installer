@@ -151,7 +151,7 @@ if [[ ${#EPEL_PKGS[@]} -gt 0 ]]; then
     dnf_install_list "epel-extra.txt" "${EPEL_PKGS[@]}"
   else
     echo "ERROR: EPEL packages listed but EPEL tree missing under $LOCAL_REPO_ROOT/EPEL" >&2
-    echo "On build host: edit packages/epel-extra.txt && ./scripts/02-fetch-epel-packages.sh" >&2
+    echo "On build host: edit packages/epel-extra.txt && ./scripts/01-fetch-offline-content.sh" >&2
     exit 1
   fi
 fi
@@ -161,7 +161,7 @@ if [[ ${#FUSION_PKGS[@]} -gt 0 ]]; then
     dnf_install_list "rpmfusion-extra.txt" "${FUSION_PKGS[@]}"
   else
     echo "ERROR: RPM Fusion packages listed but RPMFusion/ tree missing under $LOCAL_REPO_ROOT" >&2
-    echo "On build host: edit packages/rpmfusion-extra.txt && ./scripts/02b-fetch-rpmfusion-packages.sh" >&2
+    echo "On build host: edit packages/rpmfusion-extra.txt && ./scripts/01-fetch-offline-content.sh" >&2
     exit 1
   fi
 fi
