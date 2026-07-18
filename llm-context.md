@@ -7,7 +7,8 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 - **Base:** Image Builder **liveimg** ISO (`rhel-8.10-fips-stig.iso`), not a package DVD. Rootfs from `liveimg.tar.gz`; extras/errata from USB offline tree.
 - **USB:** two-region — (1) isohybrid installer at start, (2) ext4 `LABEL=RHEL8OFFLINE` for BaseOS/AppStream/CRB/EPEL/wheels/docs/scripts.
 - **Do not** rebuild multi‑GB package ISO for errata; rsync repos to data partition.
-- **Pipeline order:** `01-fetch-offline-content` (RHEL+EPEL+Fusion+wheels+check; stops Docker) → `02-build-kickstart-iso` → `03-prepare-usb` → `04-update-usb`. Helpers under `scripts/lib/`.
+- **Pipeline order:** `01-fetch-offline-content` (RHEL+EPEL+Fusion+wheels+check; **stops** Docker, keeps container) → `02-build-kickstart-iso` → `03-prepare-usb` → `04-update-usb`. Helpers under `scripts/lib/`.
+- **Container reuse:** `lib/ensure-container.sh` starts existing stopped container; skips re-register/repo/tools when `/var/lib/airgap-container-ready` exists. Default end of 01: `docker stop` not `rm`. `--remove-container` / `RECREATE_CONTAINER=1` / `FORCE_CONTAINER_SETUP=1` for full reset.
 - **Target helpers only** (not 01–08): listed in `scripts/target-scripts.list`. Install path: single `install-airgap-helpers.sh`.
 
 ## Design decisions

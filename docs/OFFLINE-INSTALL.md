@@ -175,11 +175,15 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator ind
 ## 6. Build-host pipeline (connected machine only)
 
 ```text
-01-fetch-offline-content.sh   # RHEL + EPEL + RPM Fusion + wheels + check; stops Docker
+01-fetch-offline-content.sh   # RHEL + EPEL + RPM Fusion + wheels + check; stops Docker (keeps container)
 02-build-kickstart-iso.sh     # generate ks.cfg + inject custom ISO
 03-prepare-usb.sh             # first-time full write only
 04-update-usb.sh              # later incremental USB updates
 ```
+
+`01` reuses a stopped `rhel8-reposync` container on the next run (subscription + repo enablement preserved).
+Use `--keep-running` to leave it up, or `--remove-container` / `RECREATE_CONTAINER=1` for a clean slate.
+
 
 ---
 

@@ -245,5 +245,5 @@ rhel-installer/
 - Never commit `config.env` (activation keys, password hashes).
 - `chmod 600 config.env`
 - Treat the finished USB as sensitive (full OS content + errata + kickstart credentials).
-- `01-fetch-offline-content.sh` removes the `rhel8-reposync` container when finished
-  (use `--keep-container` to leave it running).
+- `01-fetch-offline-content.sh` stops the `rhel8-reposync` container when finished (keeps it for faster re-runs)
+  (use `--keep-running` to leave it running).
