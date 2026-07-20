@@ -73,7 +73,7 @@ Repo file: `/etc/yum.repos.d/offline-local.repo`
 **Build host** (internet):
 
 ```bash
-./scripts/01-fetch-offline-content.sh              # as needed (stops Docker when done)
+./scripts/01-fetch-offline-content.sh              # as needed (stops the container when done)
 sudo ./scripts/04-update-usb.sh --repos --device /dev/sdX
 # kickstart/helpers only (no partition writes):
 # ./scripts/02-build-kickstart-iso.sh && sudo ./scripts/04-update-usb.sh --ks --device /dev/sdX

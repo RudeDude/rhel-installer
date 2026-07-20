@@ -7,9 +7,9 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 - **Base:** Image Builder **liveimg** ISO (`rhel-8.10-fips-stig.iso`), not a package DVD. Rootfs from `liveimg.tar.gz`; extras/errata from USB offline tree.
 - **USB:** two-region — (1) isohybrid installer at start, (2) ext4 `LABEL=RHEL8OFFLINE` for BaseOS/AppStream/CRB/EPEL/wheels/docs/scripts.
 - **Do not** rebuild multi‑GB package ISO for errata; rsync repos to data partition.
-- **Pipeline order:** `01-fetch-offline-content` (RHEL+EPEL+Fusion+wheels+check; **stops** Docker, keeps container) → `02-build-kickstart-iso` → `03-prepare-usb` → `04-update-usb`. Helpers under `scripts/lib/`.
+- **Pipeline order:** `01-fetch-offline-content.sh` (RHEL+EPEL+Fusion+wheels+check; **stops** container, keeps it) → `02-build-kickstart-iso.sh` → `03-prepare-usb.sh` → `04-update-usb.sh`. Helpers under `scripts/lib/`.
 - **Container reuse:** `lib/ensure-container.sh` starts existing stopped container; skips re-register/repo/tools when `/var/lib/airgap-container-ready` exists. Default end of 01: `docker stop` not `rm`. `--remove-container` / `RECREATE_CONTAINER=1` / `FORCE_CONTAINER_SETUP=1` for full reset.
-- **Target helpers only** (not 01–08): listed in `scripts/target-scripts.list`. Install path: single `install-airgap-helpers.sh`.
+- **Target helpers only** (not 01-04): listed in `scripts/target-scripts.list`. Install path: single `install-airgap-helpers.sh`.
 
 ## Design decisions
 
@@ -36,8 +36,8 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 2. **No USB keyboard** until same authorize path (need `usbhid`).
 3. **GRUB menu never auto-boots** — `GRUB_TIMEOUT=-1` / recordfail; fix with `configure-grub-timeout.sh`.
 4. **Hybrid USB partition** — isohybrid embeds GPT only spanning ~ISO size; data partition after ISO needs `sgdisk -e` (fix GPT) then create ext4 labeled `RHEL8OFFLINE`. Using parted alone / wrong type broke layout (“Invalid partition data”).
-5. **`04-update-usb` is mount-only** — never dd, never sgdisk -n/parted, never mkfs, never GPT repair. Updates data partition via mount+rsync; `--boot` only mounts existing small vfat ESP and copies files. ISO9660 hybrid body is RO → full installer image replace = **03-prepare-usb only**. Lost data partition entry → 07 (not 08).
-6. **Kickstart updates:** Default `KS_BOOT_SOURCE=data` → `inst.ks=hd:LABEL=RHEL8OFFLINE:/ks/ks.cfg`. `02-build-kickstart-iso` + `04-update-usb --ks`. No boot rewrite for ks.
+5. **`04-update-usb.sh` is mount-only** — never dd, never sgdisk -n/parted, never mkfs, never GPT repair. Updates data partition via mount+rsync; `--boot` only mounts existing small vfat ESP and copies files. ISO9660 hybrid body is RO → full installer image replace = **03-prepare-usb.sh only**. Lost data partition entry → 03-prepare-usb.sh (not 04-update-usb.sh).
+6. **Kickstart updates:** Default `KS_BOOT_SOURCE=data` → `inst.ks=hd:LABEL=RHEL8OFFLINE:/ks/ks.cfg`. `02-build-kickstart-iso.sh` + `04-update-usb.sh --ks`. No boot rewrite for ks.
 7. **Repos sizes (approx):** RHEL newest-only ~31G; EPEL selected ~148M; wheels ~3.3M.
 
 ## Bugs / pitfalls fixed (build host)
@@ -55,7 +55,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 ## Key paths
 
 ```
-scripts/01–04*.sh          build host (lib/ holds substeps)
+scripts/01-04*.sh          build host (lib/ holds substeps)
 scripts/target-scripts.list
 scripts/install-airgap-helpers.sh
 scripts/copy-offline-mirror-from-usb.sh
@@ -78,10 +78,10 @@ out/offline-repo/          staged mirror + scripts/docs/packages
 
 ## Gaps / resume work
 
-- Re-test full install after GRUB + early-helper embed changes (`02-build-kickstart-iso` + `04-update-usb` or re-`03-prepare-usb`).
+- Re-test full install after GRUB + early-helper embed changes (`02-build-kickstart-iso.sh` + `04-update-usb.sh` or re-`03-prepare-usb.sh`).
 - Existing installed systems: run `configure-grub-timeout.sh` + `install-airgap-helpers.sh` from USB if media updated.
-- `config.env` may lack `KS_GRUB_TIMEOUT` (05 defaults to 5).
-- Keep package lists in sync: `packages/*.txt` vs hard-coded dnf lists in `install-from-local-mirror.sh` / `%post` package list from 05.
+- `config.env` may lack `KS_GRUB_TIMEOUT` (defaults to 5 in generate-kickstart.sh).
+- Keep package lists in sync: `packages/*.txt` vs hard-coded dnf lists in `install-from-local-mirror.sh` / `%post` package list.
 - Do not put exploit/malware tooling here; offline media is STIG-oriented air-gap ops only.
 
 ## Doc map

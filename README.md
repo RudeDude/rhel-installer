@@ -111,7 +111,7 @@ chmod 600 config.env
 #   KS_ROOT_PASSWORD_HASH='$6$rounds=...'
 
 # --- Build-host pipeline ---
-# 01 Fetch all offline content (RHEL + EPEL + RPM Fusion + wheels + dep check; stops Docker)
+# 01 Fetch all offline content (RHEL + EPEL + RPM Fusion + wheels + dep check; stops the container)
 ./scripts/01-fetch-offline-content.sh
 
 # 02 Kickstart + custom installer ISO
@@ -227,7 +227,7 @@ rhel-installer/
 ├── docker/
 │   └── Dockerfile.reposync
 ├── scripts/
-│   ├── 01-fetch-offline-content.sh    # RHEL+EPEL+Fusion+wheels+check; stops Docker
+│   ├── 01-fetch-offline-content.sh    # RHEL+EPEL+Fusion+wheels+check; stops container
 │   ├── 02-build-kickstart-iso.sh      # generate ks + inject ISO
 │   ├── 03-prepare-usb.sh              # first-time full write
 │   ├── 04-update-usb.sh               # incremental USB content/boot update

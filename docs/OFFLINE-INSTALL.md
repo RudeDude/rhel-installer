@@ -99,7 +99,7 @@ Repo file: `/etc/yum.repos.d/offline-local.repo`
 | `offline-local-epel` | `…/EPEL` |
 | `offline-local-rpmfusion` | `…/RPMFusion` |
 
-Also see: **`/root/README.md`** (full guide) and `/root/README-OFFLINE-REPOS.txt` (short pointer).
+**Helper commands:** See **`/root/README.md`** section "Commands installed on the target" for the full list of available helper scripts and their purposes. Quick reference: `/root/README-OFFLINE-REPOS.txt`.
 
 ---
 
@@ -123,7 +123,7 @@ python3.11 -m pip install --no-index \
 /mnt/rhel8offline/   (or LABEL=RHEL8OFFLINE)
   BaseOS/  AppStream/  CodeReadyBuilder/
   EPEL/
-  RPMFusion/            # ffmpeg, codecs (from 02b)
+  RPMFusion/            # ffmpeg, codecs (from 01-fetch-offline-content.sh)
   python-wheels/
   packages/
   docs/                 # ROOT-HOME-README, OFFLINE-INSTALL, ADDING-PACKAGES, …
@@ -175,7 +175,7 @@ Full detail: `docs/ADDING-PACKAGES.md` on the media / local mirror; operator ind
 ## 6. Build-host pipeline (connected machine only)
 
 ```text
-01-fetch-offline-content.sh   # RHEL + EPEL + RPM Fusion + wheels + check; stops Docker (keeps container)
+01-fetch-offline-content.sh   # RHEL + EPEL + RPM Fusion + wheels + check; stops the container (keeps container)
 02-build-kickstart-iso.sh     # generate ks.cfg + inject custom ISO
 03-prepare-usb.sh             # first-time full write only
 04-update-usb.sh              # later incremental USB updates

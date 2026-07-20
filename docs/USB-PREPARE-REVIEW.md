@@ -3,7 +3,7 @@
 ## Pipeline (build host)
 
 ```text
-01-fetch-offline-content.sh   # RHEL + EPEL + RPM Fusion + wheels + dep check; stops Docker
+01-fetch-offline-content.sh   # RHEL + EPEL + RPM Fusion + wheels + dep check; stops the container
 02-build-kickstart-iso.sh     # generate ks + inject ISO
 03-prepare-usb.sh             # this step (first full write)
 04-update-usb.sh              # later incremental updates

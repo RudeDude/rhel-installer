@@ -31,7 +31,6 @@ No re-download of the whole repo is required.
 
    ```bash
    ./scripts/02-build-kickstart-iso.sh
-   ./scripts/02-build-kickstart-iso.sh
    ```
 
 4. On next USB write, the updated `ks.cfg` is copied automatically. The RPM is already under `out/offline-repo/`.
@@ -78,12 +77,10 @@ dnf info rsync openssh-server
 ## B2. Add a package from RPM Fusion (ffmpeg, codecs, …)
 
 1. Add the name to **`packages/rpmfusion-extra.txt`**.
-2. Ensure CRB + EPEL are available in the container, then:
+2. Run the fetch script (handles CRB, EPEL, and RPM Fusion in one pass):
 
    ```bash
-   ./scripts/01-fetch-offline-content.sh                 # if needed (CRB)
-   ./scripts/01-fetch-offline-content.sh      # EPEL deps for Fusion
-   ./scripts/01-fetch-offline-content.sh
+   ./scripts/01-fetch-offline-content.sh     # fetches RHEL+EPEL+Fusion+wheels
    ```
 
    Builds:
@@ -156,7 +153,7 @@ When you want newer errata on the stick:
 ./scripts/01-fetch-offline-content.sh
 # dnf reposync -n is incremental-ish: re-downloads newer packages into out/offline-repo/
 ./scripts/status-reposync.sh
-sudo ./scripts/03-prepare-usb.sh /dev/sdb   # or rsync out/offline-repo/ onto the existing USB partition
+sudo ./scripts/04-update-usb.sh --repos --device /dev/sdb   # incremental update only
 ```
 
 You do **not** need to change package lists just to pick up newer NEVRAs of packages you already install by name.
@@ -222,7 +219,7 @@ sudo dnf install --assumeno htop   # shows the transaction; look for "No match" 
 | `packages/rpmfusion-extra.txt` | RPM Fusion RPMs → `out/offline-repo/RPMFusion` |
 | `packages/python-extra.txt` | PyPI names → wheels in `out/offline-repo/python-wheels` |
 | `packages/groups.txt` | Comps groups (mostly package-mode installs) |
-| `scripts/01-fetch-offline-content.sh` | RHEL + EPEL + Fusion + wheels + dep check; stops Docker |
+| `scripts/01-fetch-offline-content.sh` | RHEL + EPEL + Fusion + wheels + dep check; stops the container |
 | `scripts/02-build-kickstart-iso.sh` | Builds `out/ks.cfg` + custom boot ISO |
 | `scripts/03-prepare-usb.sh` | Writes USB; copies **all** offline content + docs |
 | `scripts/04-update-usb.sh` | Incremental USB content update (mount only) |
