@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Download EPEL packages (and deps) into out/offline-repo/EPEL.
-# Expects rhel8-reposync container already running (01 / ensure-container).
+# Download EPEL packages into out/offline-repo/EPEL (download + createrepo only).
+# Release package install is handled by ensure-container.sh.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -34,20 +34,15 @@ fi
 echo "Packages to fetch from EPEL: ${PKGS[*]}"
 mkdir -p "$EPEL_DIR/Packages"
 
-# Reuse/start container without re-registering
-# shellcheck disable=SC1091
-source "$LIB/ensure-container.sh"
+if [[ "${AIRGAP_CONTAINER_READY:-0}" != "1" ]]; then
+  # shellcheck disable=SC1091
+  source "$LIB/ensure-container.sh"
+fi
 
-# Install epel-release only if missing (no dnf clean / tool reinstall)
-docker exec -u 0 "$CONTAINER_NAME" bash -lc '
-  set -euo pipefail
-  if rpm -q epel-release >/dev/null 2>&1; then
-    echo "epel-release already installed — skip"
-  else
-    echo "Installing epel-release..."
-    dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-  fi
-'
+if ! docker exec -u 0 "$CONTAINER_NAME" rpm -q epel-release >/dev/null 2>&1; then
+  echo "ERROR: epel-release not installed in container (ensure-container should have installed it)" >&2
+  exit 1
+fi
 
 pkg_args="${PKGS[*]}"
 echo "==> dnf download --resolve --alldeps -> /repo/EPEL/Packages"
@@ -55,24 +50,19 @@ docker exec -u 0 "$CONTAINER_NAME" bash -lc "
   set -euo pipefail
   mkdir -p /repo/EPEL/Packages
   cd /repo/EPEL/Packages
-  dnf -y download --resolve --alldeps \
-    --setopt=reposdir=/etc/yum.repos.d \
-    $pkg_args
+  dnf -y download --resolve --alldeps --setopt=reposdir=/etc/yum.repos.d $pkg_args
   find /repo/EPEL -name '*.rpm' -type f ! -path '/repo/EPEL/Packages/*' \
     -exec mv -n {} /repo/EPEL/Packages/ \\; 2>/dev/null || true
-  # Drop RHEL packages already staged in BaseOS/AppStream/CRB
   pruned=0
   for rpm in /repo/EPEL/Packages/*.rpm; do
     [[ -f \"\$rpm\" ]] || continue
     base=\$(basename \"\$rpm\")
     if find /repo/BaseOS /repo/AppStream /repo/CodeReadyBuilder -name \"\$base\" 2>/dev/null | grep -q .; then
-      rm -f \"\$rpm\"
-      pruned=\$((pruned+1))
+      rm -f \"\$rpm\"; pruned=\$((pruned+1))
     fi
   done
-  echo \"  pruned \$pruned RHEL-duplicate RPMs from EPEL tree\"
+  echo \"  pruned \$pruned RHEL-duplicate RPMs\"
   createrepo_c /repo/EPEL
   echo \"EPEL: \$(du -sh /repo/EPEL | cut -f1)  rpms=\$(find /repo/EPEL/Packages -name '*.rpm' | wc -l)\"
 "
-
-echo "Done. Offline EPEL content: $EPEL_DIR"
+echo "Done. Offline EPEL: $EPEL_DIR"

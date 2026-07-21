@@ -8,7 +8,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 - **USB:** two-region — (1) isohybrid installer at start, (2) ext4 `LABEL=RHEL8OFFLINE` for BaseOS/AppStream/CRB/EPEL/wheels/docs/scripts.
 - **Do not** rebuild multi‑GB package ISO for errata; rsync repos to data partition.
 - **Pipeline order:** `01-fetch-offline-content.sh` (RHEL+EPEL+Fusion+wheels+check; **stops** container, keeps it) → `02-build-kickstart-iso.sh` → `03-prepare-usb.sh` → `04-update-usb.sh`. Helpers under `scripts/lib/`.
-- **Container reuse:** `lib/ensure-container.sh` starts existing stopped container; skips re-register/repo/tools when `/var/lib/airgap-container-ready` exists. Default end of 01: `docker stop` not `rm`. `--remove-container` / `RECREATE_CONTAINER=1` / `FORCE_CONTAINER_SETUP=1` for full reset.
+- **Container reuse:** `lib/ensure-container.sh` starts existing stopped container; ONE `dnf install` for missing tools+epel+fusion releases; age-gated `makecache` (`METADATA_REFRESH_HOURS`, default 6). Fetch helpers are download-only. Default end of 01: `docker stop` not `rm`. `--remove-container` / `RECREATE_CONTAINER=1` / `FORCE_CONTAINER_SETUP=1` for full reset.
 - **Target helpers only** (not 01-04): listed in `scripts/target-scripts.list`. Install path: single `install-airgap-helpers.sh`.
 
 ## Design decisions

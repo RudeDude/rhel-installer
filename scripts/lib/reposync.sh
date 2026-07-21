@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Sync RHEL 8 BaseOS + AppStream (+ CRB) to ./out/offline-repo.
-# Reuses the rhel8-reposync container (registration/repos kept across runs).
+# Sync RHEL 8 BaseOS + AppStream + CRB into out/offline-repo (newest-only).
+# Container setup is owned by ensure-container.sh (called once by the orchestrator
+# or here if invoked standalone).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -13,7 +14,7 @@ if [[ -f "$ROOT/config.env" ]]; then
   source "$ROOT/config.env"
   set -u
 else
-  echo "Missing config.env — copy config.env.example and fill in RH credentials." >&2
+  echo "Missing config.env" >&2
   exit 1
 fi
 
@@ -33,12 +34,13 @@ map_repo_dir() {
   esac
 }
 
-# Start/reuse container + one-time register/tools (no destroy)
-# shellcheck disable=SC1091
-source "$LIB/ensure-container.sh"
+# Standalone invoke: ensure container. When called from 01 after ensure, this is cheap.
+if [[ "${AIRGAP_CONTAINER_READY:-0}" != "1" ]]; then
+  # shellcheck disable=SC1091
+  source "$LIB/ensure-container.sh"
+fi
 
-echo "==> reposync (incremental newest-only; can take a while)"
-# -n + --download-metadata leaves CDN primary listing missing RPMs → rebuild repodata after.
+echo "==> reposync (incremental newest-only)"
 for repoid in $SYNC_REPOS; do
   dest="$(map_repo_dir "$repoid")"
   echo "---- sync $repoid -> /repo/$dest ----"
@@ -66,7 +68,7 @@ for repoid in $SYNC_REPOS; do
     rm -f /repo/$dest/repodata/*modules* 2>/dev/null || true
     createrepo_c --workers \$(nproc 2>/dev/null || echo 2) \"\${comps_arg[@]}\" /repo/$dest
     rm -rf \"\$tmp\"
-    echo \"size=\$(du -sh /repo/\$dest | cut -f1) rpms=\$(find /repo/$dest -name '*.rpm' | wc -l)\"
+    echo \"size=\$(du -sh /repo/$dest | cut -f1) rpms=\$(find /repo/$dest -name '*.rpm' | wc -l)\"
   "
 done
 
@@ -74,10 +76,8 @@ cat > "$REPO_DIR/README-ON-MEDIA.txt" <<EOF
 RHEL 8 offline repository tree
 Generated: $(date -Is)
 Repos: $SYNC_REPOS
-
-Expected layout: BaseOS/ AppStream/ CodeReadyBuilder/ [EPEL/] [RPMFusion/] [python-wheels/]
 EOF
 
 echo "==> Repo sizes:"
 du -sh "$REPO_DIR"/* 2>/dev/null || du -sh "$REPO_DIR"
-echo "DONE. Offline RHEL repos at: $REPO_DIR"
+echo "DONE. RHEL offline repos at: $REPO_DIR"

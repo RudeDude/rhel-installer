@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
-# Step 01: Fetch all offline content for the air-gap USB (connected build host).
+# Step 01: Fetch all offline content (connected build host).
 #
-# Runs (in order):
-#   1) RHEL BaseOS + AppStream + CRB reposync
-#   2) EPEL targeted packages
-#   3) RPM Fusion targeted packages (ffmpeg, …)
-#   4) Python wheels (pipx, numpy, …)
-#   5) Offline dependency check
-# Then *stops* the rhel8-reposync container (keeps it for the next run so
-# registration and repo config are preserved). Does not remove the container.
+#   1) ensure-container  — start/reuse Docker; ONE dnf install for tools+EPEL+Fusion releases
+#   2) RHEL reposync
+#   3) EPEL download
+#   4) RPM Fusion download
+#   5) Python wheels
+#   6) Offline dep check
+# Then stop the container (keep it for the next run). Does not remove by default.
 #
-# Usage:
 #   ./scripts/01-fetch-offline-content.sh
-#   ./scripts/01-fetch-offline-content.sh --skip-wheels
-#   ./scripts/01-fetch-offline-content.sh --skip-check
-#   ./scripts/01-fetch-offline-content.sh --keep-running   # leave container up
-#   ./scripts/01-fetch-offline-content.sh --remove-container  # stop+rm (full reset)
-#   ./scripts/01-fetch-offline-content.sh --only-check
-#   FORCE_CONTAINER_SETUP=1 ./scripts/01-fetch-offline-content.sh  # re-register/tools
-#   RECREATE_CONTAINER=1 ./scripts/01-fetch-offline-content.sh     # docker rm + new
+#   ./scripts/01-fetch-offline-content.sh --skip-reposync --skip-wheels
+#   ./scripts/01-fetch-offline-content.sh --keep-running
+#   ./scripts/01-fetch-offline-content.sh --remove-container
+#   METADATA_REFRESH_HOURS=0 ./scripts/01-fetch-offline-content.sh   # always makecache
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -46,17 +41,17 @@ usage() {
   cat <<EOF
 Usage: $0 [options]
 
-  --skip-reposync     Skip RHEL reposync (use existing BaseOS/AppStream/CRB trees)
-  --skip-epel         Skip EPEL package fetch
-  --skip-rpmfusion    Skip RPM Fusion package fetch
+  --skip-reposync     Skip RHEL reposync
+  --skip-epel         Skip EPEL package download (and omit epel-release from setup if also skipping fusion)
+  --skip-rpmfusion    Skip RPM Fusion download (and omit fusion release RPMs from setup)
   --skip-wheels       Skip Python wheel fetch
   --skip-check        Skip offline dependency check
-  --keep-running      Leave container running after finish (default: stop, keep image+state)
-  --remove-container  docker rm the container after stop (loses registration; rare)
-  --only-check        Only run offline dep check (starts container if needed, then stops)
+  --keep-running      Leave container running (default: stop, keep state)
+  --remove-container  docker rm after stop (loses registration)
+  --only-check        Start container if needed, run dep check, stop
   -h, --help
 
-Default: stop the container when done, but do not remove it (next run is faster).
+Default: docker stop at end (not rm). Next run restarts the same container quickly.
 EOF
 }
 
@@ -75,6 +70,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+export SKIP_EPEL SKIP_RPMFUSION
+
 stop_container() {
   if [[ "$KEEP_RUNNING" -eq 1 ]]; then
     echo "==> Leaving container $CONTAINER_NAME running (--keep-running)"
@@ -83,7 +80,6 @@ stop_container() {
   if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER_NAME"; then
     echo "==> Stopping container $CONTAINER_NAME (preserved for next run)"
     docker stop "$CONTAINER_NAME" >/dev/null 2>&1 || true
-    echo "    stopped (registration/repos retained). Start again via next 01 run."
   elif docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER_NAME"; then
     echo "==> Container $CONTAINER_NAME already stopped"
   else
@@ -103,37 +99,36 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT
 
 echo "############################################################"
-echo "# 01-fetch-offline-content — full offline media payload    #"
+echo "# 01-fetch-offline-content                                 #"
 echo "############################################################"
 echo "Project: $ROOT"
 echo
 
+# Shared setup once; lib fetch scripts skip re-ensure when AIRGAP_CONTAINER_READY=1
+echo "==== [0] Container + single-pass tool/release install ===="
+# shellcheck disable=SC1091
+source "$LIB/ensure-container.sh"
+export AIRGAP_CONTAINER_READY=1
+
 if [[ "$ONLY_CHECK" -eq 1 ]]; then
-  # ensure container up for check
-  # shellcheck disable=SC1091
-  source "$LIB/ensure-container.sh"
+  echo
+  echo "==== Offline dependency check only ===="
   bash "$LIB/check-offline-deps.sh"
   exit 0
 fi
 
 if [[ "$SKIP_REPOSYNC" -eq 0 ]]; then
-  echo "==== [1/5] RHEL reposync (BaseOS / AppStream / CRB) ===="
+  echo
+  echo "==== [1/5] RHEL reposync ===="
   bash "$LIB/reposync.sh"
 else
+  echo
   echo "==== [1/5] RHEL reposync — SKIPPED ===="
-  # Still need a running container for later steps
-  # shellcheck disable=SC1091
-  source "$LIB/ensure-container.sh"
-fi
-
-if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
-  echo "ERROR: $CONTAINER_NAME not running after setup" >&2
-  exit 1
 fi
 
 if [[ "$SKIP_EPEL" -eq 0 ]]; then
   echo
-  echo "==== [2/5] EPEL packages (packages/epel-extra.txt) ===="
+  echo "==== [2/5] EPEL packages ===="
   bash "$LIB/fetch-epel.sh"
 else
   echo
@@ -142,7 +137,7 @@ fi
 
 if [[ "$SKIP_RPMFUSION" -eq 0 ]]; then
   echo
-  echo "==== [3/5] RPM Fusion packages (packages/rpmfusion-extra.txt) ===="
+  echo "==== [3/5] RPM Fusion packages ===="
   bash "$LIB/fetch-rpmfusion.sh"
 else
   echo
@@ -151,7 +146,7 @@ fi
 
 if [[ "$SKIP_WHEELS" -eq 0 ]]; then
   echo
-  echo "==== [4/5] Python wheels (packages/python-extra.txt) ===="
+  echo "==== [4/5] Python wheels ===="
   bash "$LIB/fetch-python-wheels.sh"
 else
   echo
@@ -169,7 +164,7 @@ fi
 
 echo
 echo "############################################################"
-echo "# Offline content fetch complete                             #"
+echo "# Offline content fetch complete                           #"
 echo "############################################################"
 echo "Tree: ${REPO_DIR:-$ROOT/out/offline-repo}"
 du -sh "${REPO_DIR:-$ROOT/out/offline-repo}" 2>/dev/null || true
@@ -177,4 +172,3 @@ echo
 echo "Next:"
 echo "  ./scripts/02-build-kickstart-iso.sh"
 echo "  sudo ./scripts/03-prepare-usb.sh /dev/sdX"
-# trap stops container (unless --keep-running)
