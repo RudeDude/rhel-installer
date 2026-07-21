@@ -16,3 +16,8 @@ gstreamer1-plugins-ugly
 gstreamer1-libav
 gstreamer1-plugins-bad-nonfree
 vlc
+
+# --- Filesystems ---
+# Mount/create exFAT (USB sticks, cameras). Not in RHEL BaseOS/AppStream.
+fuse-exfat          # FUSE driver: mount -t exfat
+exfatprogs          # mkfs.exfat, fsck.exfat, etc.

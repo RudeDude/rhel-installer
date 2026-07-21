@@ -36,6 +36,7 @@
 | gstreamer1-plugins-base/good | RHEL AppStream — `packages/recommended.txt` |
 | gstreamer1-plugins-ugly / libav | **RPM Fusion** — `packages/rpmfusion-extra.txt` |
 | gstreamer1-plugins-bad-nonfree | **RPM Fusion nonfree** — same list/script |
+| exFAT mount/tools | **RPM Fusion:** `fuse-exfat` (mount) + `exfatprogs` (mkfs/fsck) — `packages/rpmfusion-extra.txt` |
 
 **Staging vs install:** `01-fetch-offline-content.sh` mirrors BaseOS/AppStream/CRB, stages EPEL list, and stages RPM Fusion list into `out/offline-repo/RPMFusion/`. Target install reads lists via `install-from-local-mirror.sh`.
 
