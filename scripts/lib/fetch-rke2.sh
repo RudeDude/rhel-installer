@@ -88,8 +88,9 @@ EOF
     --enablerepo=rancher-rke2-1-${RKE2_MINOR}-latest \
     ${PKG_ARGS}
 
+  # Inside host single-quoted bash -lc: use \; (not \\;) so find still gets a terminator
   find /repo/RKE2 -name "*.rpm" -type f ! -path "/repo/RKE2/Packages/*" \
-    -exec mv -n {} /repo/RKE2/Packages/ \\; 2>/dev/null || true
+    -exec mv -n {} /repo/RKE2/Packages/ \; 2>/dev/null || true
 
   # Keep RKE2-unique packages; drop pure RHEL duplicates already on media
   pruned=0
