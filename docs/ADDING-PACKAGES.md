@@ -15,6 +15,7 @@ For packages only in **EPEL** or **RPM Fusion**, add them to the matching list f
 | `required.txt`, `recommended.txt` | Yes |
 | `epel-extra.txt`, `rpmfusion-extra.txt` | Yes |
 | `available-manual.txt` | **No** — document-only; operator runs `dnf install` when needed |
+| `rke2-extra.txt` | **No** — mirrored only; `sudo dnf install rke2-server` / `rke2-agent` when needed |
 
 Container stack examples in `available-manual.txt`: `podman-docker`, `podman`, `buildah`, `skopeo`, `containernetworking-plugins`, plus optional `runc` / `crun` / `slirp4netns` / `fuse-overlayfs`.
 
@@ -227,6 +228,7 @@ sudo dnf install --assumeno htop   # shows the transaction; look for "No match" 
 | `packages/recommended.txt` | Optional extras (`INCLUDE_RECOMMENDED`) |
 | `packages/epel-extra.txt` | EPEL RPMs → `out/offline-repo/EPEL` |
 | `packages/rpmfusion-extra.txt` | RPM Fusion RPMs → `out/offline-repo/RPMFusion` |
+| `packages/rke2-extra.txt` | Rancher RKE2 RPMs → `out/offline-repo/RKE2/` (manual install) |
 | `packages/python-extra.txt` | PyPI names → wheels in `out/offline-repo/python-wheels` |
 | `packages/groups.txt` | Comps groups (mostly package-mode installs) |
 | `scripts/01-fetch-offline-content.sh` | RHEL + EPEL + Fusion + wheels + dep check; stops the container |

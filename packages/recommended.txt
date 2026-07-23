@@ -26,6 +26,9 @@ gstreamer1-plugins-good-gtk
 gstreamer1-plugins-bad-free
 
 # --- Automation (git is also in required.txt with gitk/git-lfs) ---
+# Ansible for RKE2 prepackaged installer playbooks (needs >= 2.9; AppStream ships 2.12+)
+ansible-core
+# Fuller package "ansible" (collections) is EPEL — packages/epel-extra.txt
 # no gcc/make toolchain by default
 
 # --- Small CLI helpers commonly needed offline ---

@@ -11,7 +11,7 @@ REPO_USB=/etc/yum.repos.d/offline-usb.repo
 echo "Local offline mirror: $LOCAL"
 if [[ -d "$LOCAL" ]]; then
   du -sh "$LOCAL" 2>/dev/null || true
-  for d in BaseOS AppStream CodeReadyBuilder EPEL RPMFusion python-wheels packages docs scripts ks; do
+  for d in BaseOS AppStream CodeReadyBuilder EPEL RPMFusion RKE2 python-wheels packages docs scripts ks; do
     if [[ -e "$LOCAL/$d" ]]; then
       printf '  %-18s %s\n' "$d" "$(du -sh "$LOCAL/$d" 2>/dev/null | awk '{print $1}')"
     else

@@ -1,0 +1,12 @@
+# Rancher RKE2 RPMs mirrored from rpm.rancher.io (not RHEL CDN).
+# Fetched with: ./scripts/01-fetch-offline-content.sh  (lib/fetch-rke2.sh)
+# Staged under: out/offline-repo/RKE2/
+#
+# NOT auto-installed by install-from-local-mirror.sh — offline backup for
+#   sudo dnf install rke2-server   # or rke2-agent
+#
+# Channel / version: RKE2_MINOR (default 34 → 1.34), LINUX_MAJOR=8
+# Docs: https://docs.rke2.io/install/methods
+
+rke2-server
+rke2-agent

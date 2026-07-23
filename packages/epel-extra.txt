@@ -18,4 +18,7 @@ keepassxc
 # Classic RDP client (optional; freerdp/xfreerdp is already in required.txt from AppStream)
 rdesktop
 
+# Ansible meta package (collections) — pulls ansible-core; RHEL AppStream has ansible-core alone
+ansible
+
 # Media codecs (ffmpeg, etc.) → packages/rpmfusion-extra.txt + ./scripts/01-fetch-offline-content.sh

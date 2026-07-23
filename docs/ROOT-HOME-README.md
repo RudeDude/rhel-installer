@@ -151,12 +151,17 @@ Also on USB root: `OFFLINE-INSTALL.md`, `README-ON-MEDIA.txt`.
 
 ### Package lists (what was planned for this media)
 
-Manual (not auto-installed) container stack RPMs — see `available-manual.txt`:
+Manual (not auto-installed) RPMs on the offline mirror:
 
 ```bash
+# Container stack — packages/available-manual.txt
 sudo dnf install podman-docker podman buildah skopeo containernetworking-plugins
-# optional: runc crun slirp4netns fuse-overlayfs
+
+# RKE2 (Rancher mirror under /var/lib/offline-repos/RKE2) — packages/rke2-extra.txt
+sudo dnf install rke2-server    # or: rke2-agent
 ```
+
+Ansible (`ansible-core` + EPEL `ansible`) is installed by `install-from-local-mirror.sh`.
 
 Third-party CLIs (kubectl, helm, hauler, …): install under `/usr/local` or `/opt`,
 then trust with fapolicyd — see **`STIG-THIRD-PARTY-TOOLS.md`**.
@@ -164,8 +169,9 @@ then trust with fapolicyd — see **`STIG-THIRD-PARTY-TOOLS.md`**.
 ```text
 /root/airgap-packages/required.txt
 /root/airgap-packages/available-manual.txt   # on mirror only; dnf install yourself
-/root/airgap-packages/recommended.txt
-/root/airgap-packages/epel-extra.txt
+/root/airgap-packages/recommended.txt        # includes ansible-core
+/root/airgap-packages/epel-extra.txt         # includes ansible (collections)
+/root/airgap-packages/rke2-extra.txt         # mirrored only — dnf install rke2-server|agent
 /root/airgap-packages/python-extra.txt
 /root/airgap-packages/groups.txt
 ```

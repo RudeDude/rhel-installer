@@ -69,12 +69,20 @@ else
   echo "WARN: no RPMFusion/repodata — Fusion package checks will be skipped."
   echo "      Run: ./scripts/01-fetch-offline-content.sh"
 fi
+HAVE_RKE2=0
+mapfile -t RKE2_PKGS < <(pkg_file_to_lines "$ROOT/packages/rke2-extra.txt" | sort -u)
+if [[ -d "$REPO_DIR/RKE2/repodata" ]]; then
+  HAVE_RKE2=1
+else
+  echo "WARN: no RKE2/repodata — RKE2 package checks will be skipped."
+fi
 
 echo "==> Checking deps offline using only file:// repos under /repo"
 echo "    RHEL packages (required+recommended): ${#RHEL_PKGS[@]}"
 echo "    EPEL packages (epel-extra.txt): ${#EPEL_PKGS[@]} (have_epel=$HAVE_EPEL have_crb=$HAVE_CRB)"
 echo "    RPM Fusion packages (rpmfusion-extra.txt): ${#FUSION_PKGS[@]} (have_fusion=$HAVE_FUSION)"
 echo "    Manual-only RHEL (available-manual.txt): ${#MANUAL_PKGS[@]}"
+echo "    RKE2 packages (rke2-extra.txt): ${#RKE2_PKGS[@]} (have_rke2=$HAVE_RKE2)"
 echo
 
 # Pass package lists via files on the bind-mounted /repo
@@ -83,9 +91,10 @@ printf '%s\n' "${RHEL_PKGS[@]}" > "$REPO_DIR/.check/rhel-pkgs.txt"
 printf '%s\n' "${EPEL_PKGS[@]}" > "$REPO_DIR/.check/epel-pkgs.txt"
 printf '%s\n' "${FUSION_PKGS[@]}" > "$REPO_DIR/.check/fusion-pkgs.txt"
 printf '%s\n' "${MANUAL_PKGS[@]}" > "$REPO_DIR/.check/manual-pkgs.txt"
+printf '%s\n' "${RKE2_PKGS[@]}" > "$REPO_DIR/.check/rke2-pkgs.txt"
 
 docker exec -u 0 -e HAVE_EPEL="$HAVE_EPEL" -e HAVE_CRB="$HAVE_CRB" -e HAVE_FUSION="$HAVE_FUSION" \
-  -e CHECK_GUI_GROUP="$CHECK_GUI_GROUP" \
+  -e HAVE_RKE2="$HAVE_RKE2" -e CHECK_GUI_GROUP="$CHECK_GUI_GROUP" \
   "$CONTAINER_NAME" bash -lc '
 set -euo pipefail
 mkdir -p /etc/yum.repos.d/offline-check.d
@@ -95,6 +104,8 @@ EPEL_EN=0
 [[ "${HAVE_EPEL:-0}" == "1" ]] && EPEL_EN=1
 FUSION_EN=0
 [[ "${HAVE_FUSION:-0}" == "1" ]] && FUSION_EN=1
+RKE2_EN=0
+[[ "${HAVE_RKE2:-0}" == "1" ]] && RKE2_EN=1
 
 cat > /etc/yum.repos.d/offline-check.d/local.repo <<EOF
 [local-baseos]
@@ -129,6 +140,12 @@ name=local RPM Fusion
 baseurl=file:///repo/RPMFusion
 enabled=${FUSION_EN}
 gpgcheck=0
+
+[local-rke2]
+name=local RKE2
+baseurl=file:///repo/RKE2
+enabled=${RKE2_EN}
+gpgcheck=0
 EOF
 
 dnf -q --setopt=reposdir=/etc/yum.repos.d/offline-check.d clean all || true
@@ -137,6 +154,7 @@ mapfile -t RHEL_PKGS < <(sed "/^$/d" /repo/.check/rhel-pkgs.txt 2>/dev/null || t
 mapfile -t EPEL_PKGS < <(sed "/^$/d" /repo/.check/epel-pkgs.txt 2>/dev/null || true)
 mapfile -t FUSION_PKGS < <(sed "/^$/d" /repo/.check/fusion-pkgs.txt 2>/dev/null || true)
 mapfile -t MANUAL_PKGS < <(sed "/^$/d" /repo/.check/manual-pkgs.txt 2>/dev/null || true)
+mapfile -t RKE2_PKGS < <(sed "/^$/d" /repo/.check/rke2-pkgs.txt 2>/dev/null || true)
 
 check_set() {
   local label="$1"; shift
@@ -150,7 +168,7 @@ check_set() {
   set +e
   dnf --setopt=reposdir=/etc/yum.repos.d/offline-check.d \
       --disablerepo="*" \
-      --enablerepo=local-baseos,local-appstream,local-crb,local-epel,local-rpmfusion \
+      --enablerepo=local-baseos,local-appstream,local-crb,local-epel,local-rpmfusion,local-rke2 \
       install --downloadonly -y --downloaddir="$dl" "$@" 2>&1
   st=$?
   set -e
@@ -179,6 +197,9 @@ if [[ "${HAVE_FUSION}" == "1" && ${#FUSION_PKGS[@]} -gt 0 ]]; then
 fi
 if [[ ${#MANUAL_PKGS[@]} -gt 0 ]]; then
   check_set "Manual-only RHEL list (available-manual.txt — not auto-installed)" "${MANUAL_PKGS[@]}" || rc=1
+fi
+if [[ "${HAVE_RKE2}" == "1" && ${#RKE2_PKGS[@]} -gt 0 ]]; then
+  check_set "RKE2 package list (rke2-extra.txt — not auto-installed)" "${RKE2_PKGS[@]}" || rc=1
 fi
 
 if [[ "${CHECK_GUI_GROUP}" == "1" ]]; then

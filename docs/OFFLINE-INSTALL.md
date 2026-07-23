@@ -98,6 +98,7 @@ Repo file: `/etc/yum.repos.d/offline-local.repo`
 | `offline-local-crb` | `…/CodeReadyBuilder` |
 | `offline-local-epel` | `…/EPEL` |
 | `offline-local-rpmfusion` | `…/RPMFusion` |
+| `offline-local-rke2` | `…/RKE2` (Rancher mirror; manual install) |
 
 **Helper commands:** See **`/root/README.md`** section "Commands installed on the target" for the full list of available helper scripts and their purposes. Quick reference: `/root/README-OFFLINE-REPOS.txt`.
 

@@ -95,10 +95,11 @@ if [[ -x /usr/local/sbin/enable-offline-repos.sh ]]; then
   /usr/local/sbin/enable-offline-repos.sh
 else
   # Minimal fallback if helpers not yet installed
-  EPEL_EN=0; CRB_EN=0; FUSION_EN=0
+  EPEL_EN=0; CRB_EN=0; FUSION_EN=0; RKE2_EN=0
   [[ -d "$LOCAL_REPO_ROOT/EPEL/repodata" || -d "$LOCAL_REPO_ROOT/EPEL/Packages" ]] && EPEL_EN=1
   [[ -d "$LOCAL_REPO_ROOT/CodeReadyBuilder" ]] && CRB_EN=1
   [[ -d "$LOCAL_REPO_ROOT/RPMFusion/repodata" || -d "$LOCAL_REPO_ROOT/RPMFusion/Packages" ]] && FUSION_EN=1
+  [[ -d "$LOCAL_REPO_ROOT/RKE2/repodata" || -d "$LOCAL_REPO_ROOT/RKE2/Packages" ]] && RKE2_EN=1
   cat > "$REPO_FILE_LOCAL" <<EOF
 # Updated by update-target-repo-from-usb.sh $(date -Is)
 [offline-local-baseos]
@@ -128,6 +129,11 @@ gpgcheck=0
 name=Offline RPM Fusion (local disk)
 baseurl=file://${LOCAL_REPO_ROOT}/RPMFusion
 enabled=${FUSION_EN}
+gpgcheck=0
+[offline-local-rke2]
+name=Offline RKE2 (Rancher mirror)
+baseurl=file://${LOCAL_REPO_ROOT}/RKE2
+enabled=${RKE2_EN}
 gpgcheck=0
 EOF
 fi

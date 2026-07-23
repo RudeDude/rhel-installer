@@ -40,6 +40,8 @@
 | Docker CLI on RHEL | **`podman-docker`** (AppStream) — see `packages/available-manual.txt` (**not** auto-installed) |
 | Podman / buildah / skopeo / CNI | RHEL AppStream — `available-manual.txt` (manual `dnf install`) |
 | kubectl helm helmfile k9s hauler crane kustomize | **No RHEL/EPEL RPM** in this pipeline — offline binary/third-party; fapolicyd: `docs/STIG-THIRD-PARTY-TOOLS.md` |
+| Ansible (>= 2.9) | **`ansible-core`** AppStream (2.12+) in `recommended.txt`; **`ansible`** (collections) EPEL in `epel-extra.txt` — both auto-installed |
+| RKE2 server/agent | **Mirrored** from `rpm.rancher.io` → `out/offline-repo/RKE2/` (`packages/rke2-extra.txt`); **not** auto-installed — `sudo dnf install rke2-server` |
 
 **Staging vs install:** `01-fetch-offline-content.sh` mirrors BaseOS/AppStream/CRB, stages EPEL list, and stages RPM Fusion list into `out/offline-repo/RPMFusion/`. Target install reads lists via `install-from-local-mirror.sh`.
 
