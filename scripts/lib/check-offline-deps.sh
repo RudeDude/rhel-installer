@@ -38,6 +38,8 @@ mapfile -t RHEL_PKGS < <({
 
 mapfile -t EPEL_PKGS < <(pkg_file_to_lines "$ROOT/packages/epel-extra.txt" | sort -u)
 mapfile -t FUSION_PKGS < <(pkg_file_to_lines "$ROOT/packages/rpmfusion-extra.txt" | sort -u)
+# Manual-only RHEL packages (must resolve offline; not auto-installed on target)
+mapfile -t MANUAL_PKGS < <(pkg_file_to_lines "$ROOT/packages/available-manual.txt" | sort -u)
 
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   echo "Container $CONTAINER_NAME not running. Start with ./scripts/01-fetch-offline-content.sh first." >&2
@@ -72,6 +74,7 @@ echo "==> Checking deps offline using only file:// repos under /repo"
 echo "    RHEL packages (required+recommended): ${#RHEL_PKGS[@]}"
 echo "    EPEL packages (epel-extra.txt): ${#EPEL_PKGS[@]} (have_epel=$HAVE_EPEL have_crb=$HAVE_CRB)"
 echo "    RPM Fusion packages (rpmfusion-extra.txt): ${#FUSION_PKGS[@]} (have_fusion=$HAVE_FUSION)"
+echo "    Manual-only RHEL (available-manual.txt): ${#MANUAL_PKGS[@]}"
 echo
 
 # Pass package lists via files on the bind-mounted /repo
@@ -79,6 +82,7 @@ mkdir -p "$REPO_DIR/.check"
 printf '%s\n' "${RHEL_PKGS[@]}" > "$REPO_DIR/.check/rhel-pkgs.txt"
 printf '%s\n' "${EPEL_PKGS[@]}" > "$REPO_DIR/.check/epel-pkgs.txt"
 printf '%s\n' "${FUSION_PKGS[@]}" > "$REPO_DIR/.check/fusion-pkgs.txt"
+printf '%s\n' "${MANUAL_PKGS[@]}" > "$REPO_DIR/.check/manual-pkgs.txt"
 
 docker exec -u 0 -e HAVE_EPEL="$HAVE_EPEL" -e HAVE_CRB="$HAVE_CRB" -e HAVE_FUSION="$HAVE_FUSION" \
   -e CHECK_GUI_GROUP="$CHECK_GUI_GROUP" \
@@ -132,6 +136,7 @@ dnf -q --setopt=reposdir=/etc/yum.repos.d/offline-check.d clean all || true
 mapfile -t RHEL_PKGS < <(sed "/^$/d" /repo/.check/rhel-pkgs.txt 2>/dev/null || true)
 mapfile -t EPEL_PKGS < <(sed "/^$/d" /repo/.check/epel-pkgs.txt 2>/dev/null || true)
 mapfile -t FUSION_PKGS < <(sed "/^$/d" /repo/.check/fusion-pkgs.txt 2>/dev/null || true)
+mapfile -t MANUAL_PKGS < <(sed "/^$/d" /repo/.check/manual-pkgs.txt 2>/dev/null || true)
 
 check_set() {
   local label="$1"; shift
@@ -171,6 +176,9 @@ if [[ "${HAVE_EPEL}" == "1" && ${#EPEL_PKGS[@]} -gt 0 ]]; then
 fi
 if [[ "${HAVE_FUSION}" == "1" && ${#FUSION_PKGS[@]} -gt 0 ]]; then
   check_set "RPM Fusion package list (rpmfusion-extra.txt)" "${FUSION_PKGS[@]}" || rc=1
+fi
+if [[ ${#MANUAL_PKGS[@]} -gt 0 ]]; then
+  check_set "Manual-only RHEL list (available-manual.txt — not auto-installed)" "${MANUAL_PKGS[@]}" || rc=1
 fi
 
 if [[ "${CHECK_GUI_GROUP}" == "1" ]]; then

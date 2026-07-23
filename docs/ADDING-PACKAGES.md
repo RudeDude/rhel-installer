@@ -8,6 +8,16 @@ There are two different problems people mix up:
 For packages already in your mirrored **BaseOS / AppStream / CRB** trees, (2) is already done.  
 For packages only in **EPEL** or **RPM Fusion**, add them to the matching list file and run the fetch script.
 
+**Auto-install vs available-only:**
+
+| List | Auto-installed by `install-from-local-mirror.sh`? |
+|------|-----------------------------------------------------|
+| `required.txt`, `recommended.txt` | Yes |
+| `epel-extra.txt`, `rpmfusion-extra.txt` | Yes |
+| `available-manual.txt` | **No** — document-only; operator runs `dnf install` when needed |
+
+Container stack examples in `available-manual.txt`: `podman-docker`, `podman`, `buildah`, `skopeo`, `containernetworking-plugins`, plus optional `runc` / `crun` / `slirp4netns` / `fuse-overlayfs`.
+
 ## RHEL package names for this request
 
 | Wanted | RHEL / EPEL package | Already on media? |

@@ -37,6 +37,9 @@
 | gstreamer1-plugins-ugly / libav | **RPM Fusion** — `packages/rpmfusion-extra.txt` |
 | gstreamer1-plugins-bad-nonfree | **RPM Fusion nonfree** — same list/script |
 | exFAT mount/tools | **RPM Fusion:** `fuse-exfat` (mount) + `exfatprogs` (mkfs/fsck) — `packages/rpmfusion-extra.txt` |
+| Docker CLI on RHEL | **`podman-docker`** (AppStream) — see `packages/available-manual.txt` (**not** auto-installed) |
+| Podman / buildah / skopeo / CNI | RHEL AppStream — `available-manual.txt` (manual `dnf install`) |
+| kubectl helm helmfile k9s hauler crane kustomize | **No RHEL/EPEL RPM** in this pipeline — offline binary/third-party; fapolicyd: `docs/STIG-THIRD-PARTY-TOOLS.md` |
 
 **Staging vs install:** `01-fetch-offline-content.sh` mirrors BaseOS/AppStream/CRB, stages EPEL list, and stages RPM Fusion list into `out/offline-repo/RPMFusion/`. Target install reads lists via `install-from-local-mirror.sh`.
 

@@ -138,6 +138,7 @@ All under **`/usr/local/sbin/`** (on `PATH` for root). Also kept under
 | Offline ops (detail) | `docs/OFFLINE-INSTALL.md`, partition root | `/root/OFFLINE-INSTALL.md`, share, airgap-docs |
 | Adding packages | `docs/ADDING-PACKAGES.md` | share + airgap-docs |
 | Package name notes | `docs/PACKAGE-NOTES.md` | share + airgap-docs |
+| **STIG / fapolicyd third-party tools** | `docs/STIG-THIRD-PARTY-TOOLS.md` | share + airgap-docs |
 | USB prepare (build host) | `docs/USB-PREPARE-REVIEW.md` | share + airgap-docs |
 | Project overview | `docs/PROJECT-README.md` (from repo README) | share + airgap-docs |
 | Media splash | `README-ON-MEDIA.txt` | often under share/docs |
@@ -150,8 +151,19 @@ Also on USB root: `OFFLINE-INSTALL.md`, `README-ON-MEDIA.txt`.
 
 ### Package lists (what was planned for this media)
 
+Manual (not auto-installed) container stack RPMs — see `available-manual.txt`:
+
+```bash
+sudo dnf install podman-docker podman buildah skopeo containernetworking-plugins
+# optional: runc crun slirp4netns fuse-overlayfs
+```
+
+Third-party CLIs (kubectl, helm, hauler, …): install under `/usr/local` or `/opt`,
+then trust with fapolicyd — see **`STIG-THIRD-PARTY-TOOLS.md`**.
+
 ```text
 /root/airgap-packages/required.txt
+/root/airgap-packages/available-manual.txt   # on mirror only; dnf install yourself
 /root/airgap-packages/recommended.txt
 /root/airgap-packages/epel-extra.txt
 /root/airgap-packages/python-extra.txt

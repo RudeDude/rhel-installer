@@ -1,0 +1,21 @@
+# Packages expected to be present in the offline RHEL mirror (BaseOS/AppStream)
+# for *manual* install on the target. They are NOT auto-installed by
+# install-from-local-mirror.sh (unlike required.txt / recommended.txt /
+# epel-extra.txt / rpmfusion-extra.txt).
+#
+# Full 01-fetch-offline-content reposync already mirrors these streams.
+# On the air-gapped host (after offline repos enabled):
+#   sudo dnf install podman-docker podman buildah skopeo …
+#
+# --- Container / Kubernetes base capability (Docker CLI via Podman) ---
+podman-docker
+podman
+buildah
+skopeo
+containernetworking-plugins
+
+# --- Optional stack (usually pulled as deps; install explicitly if desired) ---
+runc
+crun
+slirp4netns
+fuse-overlayfs
