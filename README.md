@@ -86,8 +86,8 @@ That is what `config.env` / the Dockerfile use after the last fixes. Full RHEL p
 Those are listed in `packages/epel-extra.txt` and pulled with a **targeted** download (not a full EPEL Everything mirror):
 
 ```bash
-./scripts/01-fetch-offline-content.sh          # -> out/offline-repo/EPEL/
-./scripts/01-fetch-offline-content.sh    # -> out/offline-repo/RPMFusion/ (ffmpeg, …)
+# One pass fetches RHEL + EPEL + RPM Fusion + wheels into out/offline-repo/
+./scripts/01-fetch-offline-content.sh    # -> out/offline-repo/{EPEL,RPMFusion,…}/
 ```
 
 Treat `out/offline-repo/EPEL/` and `RPMFusion/` as part of the USB offline tree (`LABEL=RHEL8OFFLINE`), same as BaseOS/AppStream/CRB.
@@ -149,7 +149,7 @@ See also `docs/USB-PREPARE-REVIEW.md`.
 4. **Offline EPEL tree** is a **required** targeted RPM set (`htop`, `nload`, `pv`, `keepassxc`, `rdesktop`, …) via `packages/epel-extra.txt`.
 5. **Offline RPM Fusion tree** stages media packages (`ffmpeg`, …) via `packages/rpmfusion-extra.txt` + `./scripts/01-fetch-offline-content.sh` (needs EPEL + CRB).
 6. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/01-fetch-offline-content.sh`.
-7. **Target first setup (two scripts):** `copy-offline-mirror-from-usb.sh` (USB→disk), then after unplug `install-from-local-mirror.sh` (dnf/wheels/GUI from local mirror).
+7. **Target first setup (two scripts):** `airgap-setup-1-copy-mirror.sh` (USB→disk), then after unplug `airgap-setup-2-install.sh` (dnf/wheels/GUI from local mirror).
 
 Package name notes: `docs/PACKAGE-NOTES.md`.
 
@@ -214,6 +214,7 @@ rhel-installer/
 │   ├── OFFLINE-INSTALL.md      # primary air-gap operator guide (copied to USB)
 │   ├── ADDING-PACKAGES.md
 │   ├── PACKAGE-NOTES.md
+│   ├── STIG-THIRD-PARTY-TOOLS.md
 │   └── USB-PREPARE-REVIEW.md
 ├── packages/
 │   ├── required.txt
@@ -235,8 +236,8 @@ rhel-installer/
 │   ├── authorize-offline-usb.sh       # STIG: stop usbguard, allow HID/storage
 │   ├── update-target-repo-from-usb.sh # on target: USB → /var/lib/offline-repos
 │   ├── status-reposync.sh
-│   ├── copy-offline-mirror-from-usb.sh  # target step 1: USB → local mirror
-│   └── install-from-local-mirror.sh     # target step 2: packages from local disk
+│   ├── airgap-setup-1-copy-mirror.sh  # target step 1: USB → local mirror
+│   └── airgap-setup-2-install.sh     # target step 2: packages from local disk
 └── out/                        # offline-repo (BaseOS/AppStream/CRB/EPEL/RPMFusion/…), ISO, logs
 ```
 

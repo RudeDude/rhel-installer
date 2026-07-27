@@ -1,6 +1,6 @@
 # Packages expected to be present in the offline RHEL mirror (BaseOS/AppStream)
 # for *manual* install on the target. They are NOT auto-installed by
-# install-from-local-mirror.sh (unlike required.txt / recommended.txt /
+# airgap-setup-2-install.sh (unlike required.txt / recommended.txt /
 # epel-extra.txt / rpmfusion-extra.txt).
 #
 # Full 01-fetch-offline-content reposync already mirrors these streams.

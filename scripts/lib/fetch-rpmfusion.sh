@@ -6,6 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 LIB="$ROOT/scripts/lib"
+# shellcheck source=scripts/lib/common.sh
+source "$LIB/common.sh"
 
 if [[ -f "$ROOT/config.env" ]]; then
   set +u
@@ -25,7 +27,7 @@ if [[ ! -f "$PKG_FILE" ]]; then
   exit 1
 fi
 
-mapfile -t PKGS < <(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$PKG_FILE")
+mapfile -t PKGS < <(read_pkg_list "$PKG_FILE")
 if [[ ${#PKGS[@]} -eq 0 ]]; then
   echo "No packages listed in $PKG_FILE" >&2
   exit 1

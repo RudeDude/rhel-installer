@@ -4,11 +4,13 @@
 #
 # Uses the registered rhel8-reposync container with file:// repos.
 # Keep lists in packages/{required,recommended,epel-extra}.txt — same as
-# install-from-local-mirror.sh / lib/generate-kickstart.sh.
+# airgap-setup-2-install.sh / lib/generate-kickstart.sh.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
+# shellcheck source=scripts/lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 if [[ -f "$ROOT/config.env" ]]; then
   set +u
@@ -23,23 +25,17 @@ CONTAINER_NAME="${CONTAINER_NAME:-rhel8-reposync}"
 INCLUDE_RECOMMENDED="${INCLUDE_RECOMMENDED:-yes}"
 CHECK_GUI_GROUP="${CHECK_GUI_GROUP:-0}"
 
-pkg_file_to_lines() {
-  local f="$1"
-  [[ -f "$f" ]] || return 0
-  sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$f"
-}
-
 mapfile -t RHEL_PKGS < <({
-  pkg_file_to_lines "$ROOT/packages/required.txt"
+  read_pkg_list "$ROOT/packages/required.txt"
   if [[ "$INCLUDE_RECOMMENDED" == "yes" ]]; then
-    pkg_file_to_lines "$ROOT/packages/recommended.txt"
+    read_pkg_list "$ROOT/packages/recommended.txt"
   fi
 } | sort -u)
 
-mapfile -t EPEL_PKGS < <(pkg_file_to_lines "$ROOT/packages/epel-extra.txt" | sort -u)
-mapfile -t FUSION_PKGS < <(pkg_file_to_lines "$ROOT/packages/rpmfusion-extra.txt" | sort -u)
+mapfile -t EPEL_PKGS < <(read_pkg_list "$ROOT/packages/epel-extra.txt" | sort -u)
+mapfile -t FUSION_PKGS < <(read_pkg_list "$ROOT/packages/rpmfusion-extra.txt" | sort -u)
 # Manual-only RHEL packages (must resolve offline; not auto-installed on target)
-mapfile -t MANUAL_PKGS < <(pkg_file_to_lines "$ROOT/packages/available-manual.txt" | sort -u)
+mapfile -t MANUAL_PKGS < <(read_pkg_list "$ROOT/packages/available-manual.txt" | sort -u)
 
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   echo "Container $CONTAINER_NAME not running. Start with ./scripts/01-fetch-offline-content.sh first." >&2
@@ -70,7 +66,7 @@ else
   echo "      Run: ./scripts/01-fetch-offline-content.sh"
 fi
 HAVE_RKE2=0
-mapfile -t RKE2_PKGS < <(pkg_file_to_lines "$ROOT/packages/rke2-extra.txt" | sort -u)
+mapfile -t RKE2_PKGS < <(read_pkg_list "$ROOT/packages/rke2-extra.txt" | sort -u)
 if [[ -d "$REPO_DIR/RKE2/repodata" ]]; then
   HAVE_RKE2=1
 else
@@ -214,5 +210,5 @@ exit $rc
 '
 
 echo
-echo "Note: install-from-local-mirror.sh installs from the same packages/*.txt lists."
-echo "      Re-run 01, 02, and 02b after list changes."
+echo "Note: airgap-setup-2-install.sh installs from the same packages/*.txt lists."
+echo "      Re-run 01 and 02 after list changes."

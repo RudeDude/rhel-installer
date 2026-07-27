@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Step 07 (final): Write bootable installer + offline package partition to a USB disk.
+# Step 03 of the 01–04 pipeline (first full USB write): bootable installer + offline
+# package partition to a USB disk. (04-update-usb.sh does incremental refreshes after.)
 #
 # Run AFTER all fetch steps:
 #   01-fetch-offline-content,
@@ -100,7 +101,7 @@ pick_iso() {
       ISO="$SOURCE_ISO_PATH"
       echo "ISO: STOCK source (kickstart NOT injected yet)"
       echo "     $ISO"
-      echo "     Build custom ISO with: ./scripts/02-build-kickstart-iso.sh && ./scripts/02-build-kickstart-iso.sh"
+      echo "     Build custom ISO with: ./scripts/02-build-kickstart-iso.sh"
       return 0
     fi
   fi
@@ -247,8 +248,8 @@ preflight() {
   echo "  - scripts/ (all target helpers via target-scripts.list)"
   echo "  - project README.md"
   [[ -f "$ROOT/out/ks.cfg" ]] && echo "  - ks/ks.cfg" || echo "  - ks: (missing out/ks.cfg — run ./scripts/02-build-kickstart-iso.sh)"
-  [[ -f "$ROOT/scripts/copy-offline-mirror-from-usb.sh" ]] && echo "  - scripts/copy-offline-mirror-from-usb.sh OK" || echo "  - copy-offline-mirror-from-usb.sh MISSING"
-  [[ -f "$ROOT/scripts/install-from-local-mirror.sh" ]] && echo "  - scripts/install-from-local-mirror.sh OK" || echo "  - install-from-local-mirror.sh MISSING"
+  [[ -f "$ROOT/scripts/airgap-setup-1-copy-mirror.sh" ]] && echo "  - scripts/airgap-setup-1-copy-mirror.sh OK" || echo "  - airgap-setup-1-copy-mirror.sh MISSING"
+  [[ -f "$ROOT/scripts/airgap-setup-2-install.sh" ]] && echo "  - scripts/airgap-setup-2-install.sh OK" || echo "  - airgap-setup-2-install.sh MISSING"
   [[ -f "$ROOT/scripts/install-airgap-helpers.sh" ]] && echo "  - scripts/install-airgap-helpers.sh OK" || echo "  - install-airgap-helpers.sh MISSING"
   [[ -f "$ROOT/docs/ROOT-HOME-README.md" ]] && echo "  - docs/ROOT-HOME-README.md OK" || echo "  - ROOT-HOME-README.md MISSING"
 
@@ -556,7 +557,7 @@ do_write() {
   else
     _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
          offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
-         copy-offline-mirror-from-usb.sh install-from-local-mirror.sh
+         airgap-setup-1-copy-mirror.sh airgap-setup-2-install.sh
          update-target-repo-from-usb.sh)
   fi
   for s in "${_ts[@]}"; do
@@ -571,8 +572,8 @@ do_write() {
   # Verify critical paths landed on the stick
   local missing=0
   for need in BaseOS AppStream EPEL python-wheels docs/OFFLINE-INSTALL.md \
-              docs/ROOT-HOME-README.md scripts/copy-offline-mirror-from-usb.sh \
-              scripts/install-from-local-mirror.sh \
+              docs/ROOT-HOME-README.md scripts/airgap-setup-1-copy-mirror.sh \
+              scripts/airgap-setup-2-install.sh \
               scripts/install-airgap-helpers.sh scripts/authorize-offline-usb.sh; do
     if [[ ! -e "$MNT/$need" ]]; then
       echo "WARN: missing on media after copy: $need" >&2
@@ -609,10 +610,10 @@ Layout:
 Quick start on installed system (two steps):
   sudo authorize-offline-usb.sh
   sudo mount -L $USB_REPO_LABEL /mnt/rhel8offline
-  sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+  sudo bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh   # STEP 1 of 2
   sudo umount /mnt/rhel8offline
   # unplug USB, then:
-  sudo install-from-local-mirror.sh
+  sudo airgap-setup-2-install.sh                                      # STEP 2 of 2
 
   # Day-to-day (no USB): see /root/README.md
   #   sudo offline-repo-status.sh
@@ -635,7 +636,7 @@ EOF
 }
 
 # --- main ---
-echo "RHEL air-gap USB preparer (step 07 — final)"
+echo "RHEL air-gap USB preparer (step 03 of the 01–04 pipeline — first full USB write)"
 echo "Project: $ROOT"
 echo
 
@@ -657,7 +658,7 @@ plan
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo
   echo "DRY-RUN complete — no changes written."
-  echo "When ready (after 01–06 fetch/kickstart steps + custom ISO):"
+  echo "When ready (after 01-fetch-offline-content + 02-build-kickstart-iso):"
   echo "  sudo $0 ${DEVICE}"
   echo "Optional flags: --yes  --allow-incomplete-repo  --allow-stock-iso"
   exit 0

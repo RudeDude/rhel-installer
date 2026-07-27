@@ -1,5 +1,5 @@
 # Target-facing scripts only (installed on the air-gapped system).
-# Build-host pipeline scripts 01-08 are NOT listed here.
+# Build-host pipeline scripts 01-04 are NOT listed here.
 # Consumed by: 02-build-kickstart-iso, 03-prepare-usb, 04-update-usb, install-airgap-helpers.
 authorize-offline-usb.sh
 mount-offline-usb.sh
@@ -7,6 +7,6 @@ enable-offline-repos.sh
 offline-repo-status.sh
 configure-grub-timeout.sh
 install-airgap-helpers.sh
-copy-offline-mirror-from-usb.sh
-install-from-local-mirror.sh
+airgap-setup-1-copy-mirror.sh
+airgap-setup-2-install.sh
 update-target-repo-from-usb.sh

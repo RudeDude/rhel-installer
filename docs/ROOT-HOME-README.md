@@ -4,15 +4,14 @@ This file is installed as **`/root/README.md`** on the target system as early as
 
 1. **Kickstart `%post`** — embedded copy (works even before USB is mounted)
 2. **Media install** — `install-airgap-helpers.sh` from USB / local mirror
-3. **`copy-offline-mirror-from-usb.sh` / `install-from-local-mirror.sh`** — two-step first setup
+3. **`airgap-setup-1-copy-mirror.sh` / `airgap-setup-2-install.sh`** — two-step first setup
 
 Full copies of all air-gap documentation also live under:
 
 | Location | When available |
 |----------|----------------|
 | `/root/README.md` | Kickstart / first helper install |
-| `/root/airgap-docs/` | After helpers install from media |
-| `/usr/local/share/airgap/docs/` | System-wide copy |
+| `/root/airgap-docs/` | After helpers install from media (full doc set) |
 | `/root/airgap-packages/` | Package list `.txt` files |
 | `/var/lib/offline-repos/docs/` | After first post-install mirror copy |
 | USB `docs/` and `OFFLINE-INSTALL.md` | Always on media |
@@ -38,7 +37,7 @@ USB still inserted:
 ```bash
 sudo authorize-offline-usb.sh          # if needed
 sudo mount-offline-usb.sh
-sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+sudo bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh
 sudo umount /mnt/rhel8offline
 # unplug the USB stick
 ```
@@ -46,9 +45,9 @@ sudo umount /mnt/rhel8offline
 Then from **local disk only** (long installs):
 
 ```bash
-sudo install-from-local-mirror.sh
-# or: sudo /usr/local/sbin/install-from-local-mirror.sh
-# or: sudo bash /var/lib/offline-repos/scripts/install-from-local-mirror.sh
+sudo airgap-setup-2-install.sh
+# or: sudo /usr/local/sbin/airgap-setup-2-install.sh
+# or: sudo bash /var/lib/offline-repos/scripts/airgap-setup-2-install.sh
 ```
 
 Step 1 copies repos to `/var/lib/offline-repos`, installs helpers/docs, configures dnf.  
@@ -123,8 +122,8 @@ All under **`/usr/local/sbin/`** (on `PATH` for root). Also kept under
 | `enable-offline-repos.sh` | Point dnf at **local** mirror (or USB if no local yet) |
 | `offline-repo-status.sh` | Show mirror paths/sizes + helper/doc presence |
 | `update-target-repo-from-usb.sh` | Incremental USB → local mirror sync + helper refresh |
-| `copy-offline-mirror-from-usb.sh` | Step 1: USB → local mirror + helpers (run from USB) |
-| `install-from-local-mirror.sh` | Step 2: dnf/GUI/wheels from local disk only |
+| `airgap-setup-1-copy-mirror.sh` | Step 1: USB → local mirror + helpers (run from USB) |
+| `airgap-setup-2-install.sh` | Step 2: dnf/GUI/wheels from local disk only |
 | `install-airgap-helpers.sh` | Re-install helpers/docs from a media path |
 | `configure-grub-timeout.sh` | Fix GRUB menu waiting forever (STIG `timeout=-1`) |
 
@@ -134,14 +133,14 @@ All under **`/usr/local/sbin/`** (on `PATH` for root). Also kept under
 
 | Doc | On media | On target after helpers / post-install |
 |-----|----------|----------------------------------------|
-| **This guide** (`ROOT-HOME-README.md`) | `docs/ROOT-HOME-README.md` | **`/root/README.md`** + share/airgap-docs |
-| Offline ops (detail) | `docs/OFFLINE-INSTALL.md`, partition root | `/root/OFFLINE-INSTALL.md`, share, airgap-docs |
-| Adding packages | `docs/ADDING-PACKAGES.md` | share + airgap-docs |
-| Package name notes | `docs/PACKAGE-NOTES.md` | share + airgap-docs |
-| **STIG / fapolicyd third-party tools** | `docs/STIG-THIRD-PARTY-TOOLS.md` | share + airgap-docs |
-| USB prepare (build host) | `docs/USB-PREPARE-REVIEW.md` | share + airgap-docs |
-| Project overview | `docs/PROJECT-README.md` (from repo README) | share + airgap-docs |
-| Media splash | `README-ON-MEDIA.txt` | often under share/docs |
+| **This guide** (`ROOT-HOME-README.md`) | `docs/ROOT-HOME-README.md` | **`/root/README.md`** + `/root/airgap-docs/` |
+| Offline ops (detail) | `docs/OFFLINE-INSTALL.md`, partition root | `/root/airgap-docs/OFFLINE-INSTALL.md` |
+| Adding packages | `docs/ADDING-PACKAGES.md` | `/root/airgap-docs/` |
+| Package name notes | `docs/PACKAGE-NOTES.md` | `/root/airgap-docs/` |
+| **STIG / fapolicyd third-party tools** | `docs/STIG-THIRD-PARTY-TOOLS.md` | `/root/airgap-docs/` |
+| USB prepare (build host) | `docs/USB-PREPARE-REVIEW.md` | `/root/airgap-docs/` |
+| Project overview | `docs/PROJECT-README.md` (from repo README) | `/root/airgap-docs/` |
+| Media splash | `README-ON-MEDIA.txt` | `/root/airgap-docs/` |
 | Package lists | `packages/*.txt` | `/root/airgap-packages/`, share, local mirror |
 | Kickstart used | `ks/ks.cfg` | `/var/lib/offline-repos/ks/ks.cfg` |
 | Kickstart log | — | `/root/ks-post.log` |
@@ -161,7 +160,7 @@ sudo dnf install podman-docker podman buildah skopeo containernetworking-plugins
 sudo dnf install rke2-server    # or: rke2-agent
 ```
 
-Ansible (`ansible-core` + EPEL `ansible`) is installed by `install-from-local-mirror.sh`.
+Ansible (`ansible-core` + EPEL `ansible`) is installed by `airgap-setup-2-install.sh`.
 
 Third-party CLIs (kubectl, helm, hauler, …): install under `/usr/local` or `/opt`,
 then trust with fapolicyd — see **`STIG-THIRD-PARTY-TOOLS.md`**.
@@ -191,12 +190,11 @@ then trust with fapolicyd — see **`STIG-THIRD-PARTY-TOOLS.md`**.
 
 /usr/local/sbin/                 # helpers above
 /usr/local/share/airgap/
-  scripts/  docs/  packages/
+  scripts/  packages/
 /root/README.md                  # this file
-/root/airgap-docs/               # full doc set
+/root/airgap-docs/               # full doc set (incl. OFFLINE-INSTALL.md)
 /root/airgap-packages/           # package list copies
 /root/README-OFFLINE-REPOS.txt   # short pointer → this file
-/root/OFFLINE-INSTALL.md         # detailed offline ops
 /etc/yum.repos.d/offline-local.repo
 /etc/motd.d/99-airgap
 ```

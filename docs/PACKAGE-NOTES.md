@@ -43,7 +43,7 @@
 | Ansible (>= 2.9) | **`ansible-core`** AppStream (2.12+) in `recommended.txt`; **`ansible`** (collections) EPEL in `epel-extra.txt` — both auto-installed |
 | RKE2 server/agent | **Mirrored** from `rpm.rancher.io` → `out/offline-repo/RKE2/` (`packages/rke2-extra.txt`); **not** auto-installed — `sudo dnf install rke2-server` |
 
-**Staging vs install:** `01-fetch-offline-content.sh` mirrors BaseOS/AppStream/CRB, stages EPEL list, and stages RPM Fusion list into `out/offline-repo/RPMFusion/`. Target install reads lists via `install-from-local-mirror.sh`.
+**Staging vs install:** `01-fetch-offline-content.sh` mirrors BaseOS/AppStream/CRB, stages EPEL list, and stages RPM Fusion list into `out/offline-repo/RPMFusion/`. Target install reads lists via `airgap-setup-2-install.sh`.
 
 See `docs/ADDING-PACKAGES.md` for how to add more packages and re-sync.
 

@@ -2,7 +2,7 @@
 
 There are two different problems people mix up:
 
-1. **Remember to install the package** on the air-gapped machine (kickstart `%post` / `install-from-local-mirror.sh`)
+1. **Remember to install the package** on the air-gapped machine (kickstart `%post` / `airgap-setup-2-install.sh`)
 2. **Have the RPM (and deps) on the USB** so offline `dnf install` can succeed
 
 For packages already in your mirrored **BaseOS / AppStream / CRB** trees, (2) is already done.  
@@ -10,7 +10,7 @@ For packages only in **EPEL** or **RPM Fusion**, add them to the matching list f
 
 **Auto-install vs available-only:**
 
-| List | Auto-installed by `install-from-local-mirror.sh`? |
+| List | Auto-installed by `airgap-setup-2-install.sh`? |
 |------|-----------------------------------------------------|
 | `required.txt`, `recommended.txt` | Yes |
 | `epel-extra.txt`, `rpmfusion-extra.txt` | Yes |
@@ -37,7 +37,7 @@ No re-download of the whole repo is required.
 1. Append the **real RPM name** to a list file:
    - `packages/required.txt` — always installed in generated kickstart `%post` / intended baseline
    - `packages/recommended.txt` — when `INCLUDE_RECOMMENDED=yes` in `config.env`
-2. Target install picks up list files automatically (`install-from-local-mirror.sh` reads `packages/*.txt` from the local mirror).
+2. Target install picks up list files automatically (`airgap-setup-2-install.sh` reads `packages/*.txt` from the local mirror).
 3. Rebuild kickstart (and ISO if you inject it):
 
    ```bash
@@ -80,7 +80,7 @@ dnf info rsync openssh-server
      repodata/
    ```
 
-3. Update USB offline partition (full step 07 (prepare-usb) or rsync `EPEL/`).
+3. Update USB offline partition (`03-prepare-usb.sh`, or rsync `EPEL/`).
 4. On the installed system with offline repos enabled: `sudo dnf install htop nload …`
 
 > Full EPEL “Everything” is large. Prefer **targeted** downloads.
@@ -105,7 +105,7 @@ dnf info rsync openssh-server
 
 3. Push to USB: `sudo ./scripts/04-update-usb.sh --repos --device /dev/sdX`
 4. On the target (after local mirror copy): `sudo dnf install ffmpeg`  
-   (or re-run `install-from-local-mirror.sh` which installs `rpmfusion-extra.txt`)
+   (or re-run `airgap-setup-2-install.sh` which installs `rpmfusion-extra.txt`)
 
 Optional: `RPMFUSION_SKIP_NONFREE=1` for free-only. Default enables free + nonfree release repos.
 
@@ -151,7 +151,7 @@ Optional: `RPMFUSION_SKIP_NONFREE=1` for free-only. Default enables free + nonfr
      -r /mnt/rhel8offline/python-wheels/requirements.txt
    ```
 
-   `install-from-local-mirror.sh` does this automatically when `python-wheels/` is on the media.
+   `airgap-setup-2-install.sh` does this automatically when `python-wheels/` is on the media.
 
 > Compiled extensions need manylinux wheels matching the target; pure-Python packages (like pipx) stage cleanly as `py3-none-any.whl`.
 
@@ -236,5 +236,5 @@ sudo dnf install --assumeno htop   # shows the transaction; look for "No match" 
 | `scripts/03-prepare-usb.sh` | Writes USB; copies **all** offline content + docs |
 | `scripts/04-update-usb.sh` | Incremental USB content update (mount only) |
 | `scripts/lib/*` | Implementation helpers for the numbered steps |
-| `scripts/copy-offline-mirror-from-usb.sh` | Target step 1: USB → local mirror |
-| `scripts/install-from-local-mirror.sh` | Target step 2: packages from local disk |
+| `scripts/airgap-setup-1-copy-mirror.sh` | Target step 1: USB → local mirror |
+| `scripts/airgap-setup-2-install.sh` | Target step 2: packages from local disk |

@@ -1,7 +1,7 @@
 # Offline / air-gapped install reference
 
 This document is copied onto the USB and onto the target system under
-`/var/lib/offline-repos/`, `/root/airgap-docs/`, and `/usr/local/share/airgap/docs/`
+`/var/lib/offline-repos/` and `/root/airgap-docs/`
 for use **without internet**.
 
 **Primary operator guide on the target:** **`/root/README.md`**  
@@ -42,7 +42,7 @@ sudo mount-offline-usb.sh
 **Step 1 — USB inserted** (run from the stick; copies only):
 
 ```bash
-sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+sudo bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh
 sudo umount /mnt/rhel8offline
 # unplug USB
 ```
@@ -55,9 +55,9 @@ helpers again from the **local** copy. It does **not** unmount for you and does
 **Step 2 — USB removed** (run from local disk):
 
 ```bash
-sudo install-from-local-mirror.sh
-# or: sudo /usr/local/sbin/install-from-local-mirror.sh
-# or: sudo bash /var/lib/offline-repos/scripts/install-from-local-mirror.sh
+sudo airgap-setup-2-install.sh
+# or: sudo /usr/local/sbin/airgap-setup-2-install.sh
+# or: sudo bash /var/lib/offline-repos/scripts/airgap-setup-2-install.sh
 ```
 
 `dnf upgrade` + packages + EPEL + pipx wheels + Server with GUI from **local disk only**.
@@ -73,8 +73,8 @@ Optional env vars:
 Example:
 
 ```bash
-sudo LOCAL_REPO_ROOT=/data/offline-repos bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
-sudo LOCAL_REPO_ROOT=/data/offline-repos install-from-local-mirror.sh
+sudo LOCAL_REPO_ROOT=/data/offline-repos bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh
+sudo LOCAL_REPO_ROOT=/data/offline-repos airgap-setup-2-install.sh
 ```
 
 ---
@@ -114,7 +114,7 @@ python3.11 -m pip install --no-index \
   -r /var/lib/offline-repos/python-wheels/requirements.txt
 ```
 
-(Already done by install-from-local-mirror.sh for packages listed in `python-wheels/requirements.txt`.)
+(Already done by airgap-setup-2-install.sh for packages listed in `python-wheels/requirements.txt`.)
 
 ---
 

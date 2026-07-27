@@ -144,6 +144,6 @@ sudo ausearch -m avc -ts recent
 | Item | Location |
 |------|----------|
 | This doc on media | `docs/STIG-THIRD-PARTY-TOOLS.md` |
-| On target after helpers | `/usr/local/share/airgap/docs/`, `/root/airgap-docs/` |
+| On target after helpers | `/root/airgap-docs/` |
 | Manual RPM list (not auto-installed) | `packages/available-manual.txt` → `/root/airgap-packages/` |
 | Offline dnf | `sudo enable-offline-repos.sh` then `sudo dnf install <pkg>` |

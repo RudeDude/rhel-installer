@@ -270,7 +270,7 @@ refresh_operator_files() {
   else
     _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
          offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
-         copy-offline-mirror-from-usb.sh install-from-local-mirror.sh
+         airgap-setup-1-copy-mirror.sh airgap-setup-2-install.sh
          update-target-repo-from-usb.sh)
   fi
   for s in "${_ts[@]}"; do
@@ -288,9 +288,9 @@ Kickstart: ks/ks.cfg
 On target (first setup — two steps):
   sudo authorize-offline-usb.sh
   sudo mount-offline-usb.sh
-  sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+  sudo bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh   # STEP 1 of 2
   sudo umount /mnt/rhel8offline   # unplug USB
-  sudo install-from-local-mirror.sh
+  sudo airgap-setup-2-install.sh                                      # STEP 2 of 2
 EOF
   if command -v e2label >/dev/null 2>&1 && [[ "$(blkid -o value -s TYPE "$PART")" == ext4 ]]; then
     # label is a filesystem metadata write, not a partition-table write
@@ -423,7 +423,7 @@ update_boot_files_via_mount() {
     echo "==> No writable boot files updated"
     if [[ "$ro_iso" -eq 1 ]]; then
       echo "    Hybrid installer body is ISO9660 (read-only). To replace it:"
-      echo "      ./scripts/02-build-kickstart-iso.sh && ./scripts/02-build-kickstart-iso.sh"
+      echo "      ./scripts/02-build-kickstart-iso.sh"
       echo "      sudo ./scripts/03-prepare-usb.sh --yes $DEVICE"
     fi
     echo "    Kickstart for installs should live on the data partition (use --ks)."

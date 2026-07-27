@@ -7,9 +7,9 @@
 #
 # Copies:
 #   scripts  -> /usr/local/sbin/  and  /usr/local/share/airgap/scripts/
-#   docs     -> /usr/local/share/airgap/docs/  and  /root/airgap-docs/
+#   docs     -> /root/airgap-docs/   (single on-disk doc set, visible on root login)
 #   packages -> /usr/local/share/airgap/packages/  and  /root/airgap-packages/
-#   ROOT-HOME-README.md -> /root/README.md
+#   ROOT-HOME-README.md -> /root/README.md   (canonical entry point)
 set -euo pipefail
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -26,7 +26,7 @@ fi
 SBIN=/usr/local/sbin
 SHARE=/usr/local/share/airgap
 ROOT_DOCS=/root/airgap-docs
-mkdir -p "$SBIN" "$SHARE/scripts" "$SHARE/docs" "$SHARE/packages" "$ROOT_DOCS" /root /root/airgap-packages
+mkdir -p "$SBIN" "$SHARE/scripts" "$SHARE/packages" "$ROOT_DOCS" /root /root/airgap-packages
 
 # Prefer target-scripts.list on media; fall back to built-in list
 HELPERS=()
@@ -45,8 +45,8 @@ if [[ ${#HELPERS[@]} -eq 0 ]]; then
     offline-repo-status.sh
     configure-grub-timeout.sh
     install-airgap-helpers.sh
-    copy-offline-mirror-from-usb.sh
-    install-from-local-mirror.sh
+    airgap-setup-1-copy-mirror.sh
+    airgap-setup-2-install.sh
     update-target-repo-from-usb.sh
   )
 fi
@@ -68,28 +68,24 @@ if [[ -d "$SRC/scripts" ]]; then
   done
 fi
 
-# Docs from media docs/ or partition root
+# Docs from media docs/ or partition root — single on-disk set under /root/airgap-docs
 if [[ -d "$SRC/docs" ]]; then
-  cp -a "$SRC/docs"/. "$SHARE/docs/" 2>/dev/null || true
   cp -a "$SRC/docs"/. "$ROOT_DOCS/" 2>/dev/null || true
-  echo "  docs: $SRC/docs -> $SHARE/docs and $ROOT_DOCS"
+  echo "  docs: $SRC/docs -> $ROOT_DOCS"
 fi
 for f in OFFLINE-INSTALL.md README-ON-MEDIA.txt; do
   if [[ -f "$SRC/$f" ]]; then
-    cp -a "$SRC/$f" "$SHARE/docs/$f"
     cp -a "$SRC/$f" "$ROOT_DOCS/$f"
-    [[ "$f" == "OFFLINE-INSTALL.md" ]] && cp -a "$SRC/$f" /root/OFFLINE-INSTALL.md
   fi
 done
 
 # Master root README (canonical operator guide)
 if [[ -f "$SRC/docs/ROOT-HOME-README.md" ]]; then
   cp -a "$SRC/docs/ROOT-HOME-README.md" /root/README.md
-  cp -a "$SRC/docs/ROOT-HOME-README.md" "$SHARE/docs/ROOT-HOME-README.md"
   cp -a "$SRC/docs/ROOT-HOME-README.md" "$ROOT_DOCS/ROOT-HOME-README.md"
   echo "  /root/README.md updated from ROOT-HOME-README.md"
-elif [[ -f "$SHARE/docs/ROOT-HOME-README.md" ]]; then
-  cp -a "$SHARE/docs/ROOT-HOME-README.md" /root/README.md
+elif [[ -f "$ROOT_DOCS/ROOT-HOME-README.md" ]]; then
+  cp -a "$ROOT_DOCS/ROOT-HOME-README.md" /root/README.md
 elif [[ -f "$SRC/docs/OFFLINE-INSTALL.md" ]]; then
   cp -a "$SRC/docs/OFFLINE-INSTALL.md" /root/README.md
   echo "  /root/README.md from OFFLINE-INSTALL.md (fallback)"
@@ -112,15 +108,15 @@ Quick:
   sudo authorize-offline-usb.sh
   sudo mount-offline-usb.sh
   # First setup (two steps — do not run installs while USB is the script path):
-  sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+  sudo bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh   # STEP 1 of 2
   sudo umount /mnt/rhel8offline   # then unplug USB
-  sudo install-from-local-mirror.sh
+  sudo airgap-setup-2-install.sh                                      # STEP 2 of 2
   # Later updates: sudo update-target-repo-from-usb.sh
   sudo enable-offline-repos.sh && sudo dnf install <pkg>
   sudo offline-repo-status.sh
 
-Local mirror (after step 1): /var/lib/offline-repos
-Docs: /usr/local/share/airgap/docs/  and  /root/airgap-docs/
+Local mirror (after STEP 1): /var/lib/offline-repos
+Docs: /root/airgap-docs/
 Package lists: /root/airgap-packages/  and  /usr/local/share/airgap/packages/
 EOF
 
@@ -129,7 +125,7 @@ mkdir -p /etc/motd.d
 cat > /etc/motd.d/99-airgap <<'EOF'
 Air-gapped RHEL — read: /root/README.md
 USB stuck?  sudo authorize-offline-usb.sh
-Setup: copy-offline-mirror-from-usb.sh → umount USB → install-from-local-mirror.sh
+Setup: airgap-setup-1-copy-mirror.sh → umount USB → airgap-setup-2-install.sh
 Day-to-day: sudo enable-offline-repos.sh && sudo dnf install <pkg>
 EOF
 # Remove older duplicate motd if present
@@ -139,4 +135,4 @@ echo "==> Helpers installed under $SBIN"
 ls -1 "$SBIN"/authorize* "$SBIN"/mount-offline* "$SBIN"/enable-offline* \
   "$SBIN"/offline-repo* "$SBIN"/post-install* "$SBIN"/update-target* \
   "$SBIN"/install-airgap* 2>/dev/null || true
-echo "==> Docs: $SHARE/docs  |  /root/README.md  |  $ROOT_DOCS"
+echo "==> Docs: /root/README.md  |  $ROOT_DOCS"

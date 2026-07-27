@@ -19,7 +19,7 @@ if [[ -d "$LOCAL" ]]; then
     fi
   done
 else
-  echo "  (directory missing — run copy-offline-mirror-from-usb.sh with USB inserted)"
+  echo "  (directory missing — run airgap-setup-1-copy-mirror.sh with USB inserted)"
 fi
 
 echo
@@ -37,7 +37,7 @@ echo
 echo "Helpers on PATH (/usr/local/sbin):"
 for s in authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh \
          offline-repo-status.sh configure-grub-timeout.sh update-target-repo-from-usb.sh \
-         copy-offline-mirror-from-usb.sh install-from-local-mirror.sh \
+         airgap-setup-1-copy-mirror.sh airgap-setup-2-install.sh \
          install-airgap-helpers.sh; do
   if [[ -x "/usr/local/sbin/$s" ]]; then
     echo "  OK  $s"
@@ -48,7 +48,7 @@ done
 
 echo
 echo "Docs:"
-for p in /root/README.md /root/airgap-docs /usr/local/share/airgap/docs; do
+for p in /root/README.md /root/airgap-docs; do
   if [[ -e "$p" ]]; then
     echo "  OK  $p"
   else

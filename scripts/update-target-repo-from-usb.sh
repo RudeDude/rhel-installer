@@ -27,11 +27,15 @@ fi
 
 log() { echo "==> $*"; }
 
-# USB authorize if helper present
+# Directory this script was launched from (the USB's scripts/ when run from media),
+# so we can defer to co-located canonical helpers instead of reimplementing them.
+self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# USB authorize via canonical helper (installed, then co-located); minimal last resort
 if [[ -x /usr/local/sbin/authorize-offline-usb.sh ]]; then
   /usr/local/sbin/authorize-offline-usb.sh || true
-elif [[ -x "$USB_MNT/scripts/authorize-offline-usb.sh" ]]; then
-  bash "$USB_MNT/scripts/authorize-offline-usb.sh" || true
+elif [[ -f "$self_dir/authorize-offline-usb.sh" ]]; then
+  bash "$self_dir/authorize-offline-usb.sh" || true
 else
   systemctl stop usbguard.service 2>/dev/null || true
   systemctl disable usbguard.service 2>/dev/null || true
@@ -46,6 +50,8 @@ mkdir -p "$USB_MNT"
 if ! findmnt "$USB_MNT" >/dev/null 2>&1; then
   if [[ -x /usr/local/sbin/mount-offline-usb.sh ]]; then
     /usr/local/sbin/mount-offline-usb.sh "$LABEL" "$USB_MNT" || true
+  elif [[ -f "$self_dir/mount-offline-usb.sh" ]]; then
+    bash "$self_dir/mount-offline-usb.sh" "$LABEL" "$USB_MNT" || true
   fi
 fi
 if ! findmnt "$USB_MNT" >/dev/null 2>&1; then
@@ -89,53 +95,17 @@ elif [[ -x /usr/local/sbin/install-airgap-helpers.sh ]]; then
   /usr/local/sbin/install-airgap-helpers.sh "$LOCAL_REPO_ROOT" || true
 fi
 
-# Point dnf at local mirror (canonical enable script)
+# Point dnf at local mirror via the canonical enable script (installed, then
+# co-located on the local mirror or USB). No inline repo-file reimplementation.
 export LOCAL_REPO_ROOT
 if [[ -x /usr/local/sbin/enable-offline-repos.sh ]]; then
   /usr/local/sbin/enable-offline-repos.sh
+elif [[ -x "$LOCAL_REPO_ROOT/scripts/enable-offline-repos.sh" ]]; then
+  bash "$LOCAL_REPO_ROOT/scripts/enable-offline-repos.sh"
+elif [[ -x "$self_dir/enable-offline-repos.sh" ]]; then
+  bash "$self_dir/enable-offline-repos.sh"
 else
-  # Minimal fallback if helpers not yet installed
-  EPEL_EN=0; CRB_EN=0; FUSION_EN=0; RKE2_EN=0
-  [[ -d "$LOCAL_REPO_ROOT/EPEL/repodata" || -d "$LOCAL_REPO_ROOT/EPEL/Packages" ]] && EPEL_EN=1
-  [[ -d "$LOCAL_REPO_ROOT/CodeReadyBuilder" ]] && CRB_EN=1
-  [[ -d "$LOCAL_REPO_ROOT/RPMFusion/repodata" || -d "$LOCAL_REPO_ROOT/RPMFusion/Packages" ]] && FUSION_EN=1
-  [[ -d "$LOCAL_REPO_ROOT/RKE2/repodata" || -d "$LOCAL_REPO_ROOT/RKE2/Packages" ]] && RKE2_EN=1
-  cat > "$REPO_FILE_LOCAL" <<EOF
-# Updated by update-target-repo-from-usb.sh $(date -Is)
-[offline-local-baseos]
-name=Offline BaseOS (local disk)
-baseurl=file://${LOCAL_REPO_ROOT}/BaseOS
-enabled=1
-gpgcheck=0
-module_hotfixes=1
-[offline-local-appstream]
-name=Offline AppStream (local disk)
-baseurl=file://${LOCAL_REPO_ROOT}/AppStream
-enabled=1
-gpgcheck=0
-module_hotfixes=1
-[offline-local-crb]
-name=Offline CodeReady Builder (local disk)
-baseurl=file://${LOCAL_REPO_ROOT}/CodeReadyBuilder
-enabled=${CRB_EN}
-gpgcheck=0
-module_hotfixes=1
-[offline-local-epel]
-name=Offline EPEL 8 (local disk)
-baseurl=file://${LOCAL_REPO_ROOT}/EPEL
-enabled=${EPEL_EN}
-gpgcheck=0
-[offline-local-rpmfusion]
-name=Offline RPM Fusion (local disk)
-baseurl=file://${LOCAL_REPO_ROOT}/RPMFusion
-enabled=${FUSION_EN}
-gpgcheck=0
-[offline-local-rke2]
-name=Offline RKE2 (Rancher mirror)
-baseurl=file://${LOCAL_REPO_ROOT}/RKE2
-enabled=${RKE2_EN}
-gpgcheck=0
-EOF
+  echo "WARN: enable-offline-repos.sh not found; leaving $REPO_FILE_LOCAL unchanged" >&2
 fi
 
 dnf clean all >/dev/null 2>&1 || true

@@ -16,13 +16,13 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 | Topic | Decision |
 |-------|----------|
 | Partitioning | Interactive Anaconda (no clearpart by default) |
-| Post-install packages | **Two scripts** (not one): `copy-offline-mirror-from-usb.sh` (USB→local, helpers, dnf local) then user umount/unplug then `install-from-local-mirror.sh` (long dnf/GUI/wheels). Never unmount mid-script while still executing from USB. |
+| Post-install packages | **Two scripts** (not one): `airgap-setup-1-copy-mirror.sh` (USB→local, helpers, dnf local) then user umount/unplug then `airgap-setup-2-install.sh` (long dnf/GUI/wheels). Never unmount mid-script while still executing from USB. |
 | EPEL | Targeted fetch (`epel-extra.txt`), not full EPEL mirror (~150MB) |
-| RPM Fusion | Targeted fetch (`rpmfusion-extra.txt` → `out/offline-repo/RPMFusion/`) via `02b`; free+nonfree release RPMs in container; needs EPEL+CRB |
+| RPM Fusion | Targeted fetch (`rpmfusion-extra.txt` → `out/offline-repo/RPMFusion/`) via `01-fetch-offline-content.sh`; free+nonfree release RPMs in container; needs EPEL+CRB |
 | pipx | **No** RHEL/EPEL8 RPM; offline **wheels** via `python3.11 -m pip --no-index` |
 | ntp | Use **chrony**, not `ntpdate` (missing offline) |
 | keepass | **keepassxc** (not keepassx) |
-| Target docs | Canonical `/root/README.md` from `docs/ROOT-HOME-README.md`; other docs under `/root/airgap-docs/` + `/usr/local/share/airgap/docs/` |
+| Target docs | Canonical `/root/README.md` from `docs/ROOT-HOME-README.md`; full doc set under `/root/airgap-docs/` (single on-disk copy) |
 | Helper source of truth | Real scripts under `scripts/`; kickstart **embeds** core ones (authorize, mount, enable-repos, status, grub-timeout, root README) so they work pre-USB |
 | dnf offline | Prefer local `file:///var/lib/offline-repos`; fall back USB. RHSM noise expected offline — disable plugin / `repos --disable='*'` |
 | USB STIG policy | Stop/disable USBGuard for air-gap workflow (not mask); authorize HID+storage |
@@ -58,8 +58,8 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 scripts/01-04*.sh          build host (lib/ holds substeps)
 scripts/target-scripts.list
 scripts/install-airgap-helpers.sh
-scripts/copy-offline-mirror-from-usb.sh
-scripts/install-from-local-mirror.sh
+scripts/airgap-setup-1-copy-mirror.sh
+scripts/airgap-setup-2-install.sh
 scripts/authorize-offline-usb.sh
 scripts/configure-grub-timeout.sh
 scripts/update-target-repo-from-usb.sh
@@ -72,8 +72,8 @@ out/offline-repo/          staged mirror + scripts/docs/packages
 
 1. Kickstart embeds helpers + `/root/README.md` (pre-USB)
 2. Mount media → `install-airgap-helpers.sh`
-3. `copy-offline-mirror-from-usb`: helpers before rsync; again after local mirror; **stop** for user umount
-4. `install-from-local-mirror`: packages from local only; GRUB timeout; refuse if script path is still on USB
+3. `airgap-setup-1-copy-mirror`: helpers before rsync; again after local mirror; **stop** for user umount
+4. `airgap-setup-2-install`: packages from local only; GRUB timeout; refuse if script path is still on USB
 5. GRUB timeout also applied in kickstart
 
 ## Gaps / resume work
@@ -81,7 +81,7 @@ out/offline-repo/          staged mirror + scripts/docs/packages
 - Re-test full install after GRUB + early-helper embed changes (`02-build-kickstart-iso.sh` + `04-update-usb.sh` or re-`03-prepare-usb.sh`).
 - Existing installed systems: run `configure-grub-timeout.sh` + `install-airgap-helpers.sh` from USB if media updated.
 - `config.env` may lack `KS_GRUB_TIMEOUT` (defaults to 5 in generate-kickstart.sh).
-- Keep package lists in sync: `packages/*.txt` vs hard-coded dnf lists in `install-from-local-mirror.sh` / `%post` package list.
+- Keep package lists in sync: `packages/*.txt` vs hard-coded dnf lists in `airgap-setup-2-install.sh` / `%post` package list.
 - Do not put exploit/malware tooling here; offline media is STIG-oriented air-gap ops only.
 
 ## Doc map

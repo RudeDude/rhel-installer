@@ -4,6 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
+# shellcheck source=scripts/lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 if [[ -f "$ROOT/config.env" ]]; then
   # shellcheck disable=SC1091
@@ -93,15 +95,9 @@ dnf-plugins-core
 "
 fi
 
-pkg_file_to_lines() {
-  local f="$1"
-  [[ -f "$f" ]] || return 0
-  sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$f"
-}
-
-PKG_LINES="$(pkg_file_to_lines "$ROOT/packages/required.txt")"
+PKG_LINES="$(read_pkg_list "$ROOT/packages/required.txt")"
 if [[ "$INCLUDE_RECOMMENDED" == "yes" ]]; then
-  PKG_LINES+=$'\n'"$(pkg_file_to_lines "$ROOT/packages/recommended.txt")"
+  PKG_LINES+=$'\n'"$(read_pkg_list "$ROOT/packages/recommended.txt")"
 fi
 
 # Unique package list (space-separated for dnf in %post; newline for %packages)
@@ -186,7 +182,7 @@ else
   TARGET_SCRIPTS=(
     authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
     offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
-    copy-offline-mirror-from-usb.sh install-from-local-mirror.sh
+    airgap-setup-1-copy-mirror.sh airgap-setup-2-install.sh
     update-target-repo-from-usb.sh
   )
 fi

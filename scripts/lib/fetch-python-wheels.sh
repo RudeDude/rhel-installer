@@ -21,6 +21,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
+# shellcheck source=scripts/lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 if [[ -f "$ROOT/config.env" ]]; then
   set +u
@@ -49,7 +51,7 @@ if [[ ! -f "$PKG_FILE" ]]; then
   exit 1
 fi
 
-mapfile -t PKGS < <(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$PKG_FILE")
+mapfile -t PKGS < <(read_pkg_list "$PKG_FILE")
 if [[ ${#PKGS[@]} -eq 0 ]]; then
   echo "No packages listed in $PKG_FILE" >&2
   exit 1
@@ -346,6 +348,6 @@ du -sh "$WHEEL_DIR"
 echo
 echo "DONE. Full dependency tree staged under $WHEEL_DIR"
 echo "Next: ./scripts/01-fetch-offline-content.sh --only-check   # optional (RPMs)"
-echo "Then: ./scripts/02-build-kickstart-iso.sh && ./scripts/02-build-kickstart-iso.sh"
+echo "Then: ./scripts/02-build-kickstart-iso.sh"
 echo "Then: sudo ./scripts/03-prepare-usb.sh /dev/sdb"
 echo "Re-fetch anytime after editing $PKG_FILE"

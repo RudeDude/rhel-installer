@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Step 2 of first-time air-gap setup — RUN FROM LOCAL DISK (USB unplugged).
+# ==== Air-gap first-time setup — STEP 2 of 2 ====  (RUN FROM LOCAL DISK; USB unplugged)
 #
-# Prerequisites: step 1 already done:
-#   sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh
+# Prerequisites: STEP 1 of 2 already done:
+#   sudo bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh
 #   sudo umount /mnt/rhel8offline && unplug USB
 #
-#   sudo install-from-local-mirror.sh
-#   # or: sudo /usr/local/sbin/install-from-local-mirror.sh
-#   # or: sudo bash /var/lib/offline-repos/scripts/install-from-local-mirror.sh
+#   sudo airgap-setup-2-install.sh
+#   # or: sudo /usr/local/sbin/airgap-setup-2-install.sh
+#   # or: sudo bash /var/lib/offline-repos/scripts/airgap-setup-2-install.sh
 #
 # Installs packages, EPEL extras, Python wheels, GUI from LOCAL_REPO_ROOT only.
 #
@@ -33,9 +33,9 @@ if [[ -e "$script_src" ]]; then
   if findmnt -n -T "$real" 2>/dev/null | grep -qiE 'usb|removable|/mnt/rhel8offline' \
      || [[ "$real" == /mnt/rhel8offline/* ]]; then
     echo "ERROR: This script appears to be running from USB media ($real)." >&2
-    echo "Copy step must finish first; then run the local copy:" >&2
-    echo "  sudo /usr/local/sbin/install-from-local-mirror.sh" >&2
-    echo "  sudo bash ${LOCAL_REPO_ROOT}/scripts/install-from-local-mirror.sh" >&2
+    echo "Copy step (STEP 1 of 2) must finish first; then run the local copy:" >&2
+    echo "  sudo /usr/local/sbin/airgap-setup-2-install.sh" >&2
+    echo "  sudo bash ${LOCAL_REPO_ROOT}/scripts/airgap-setup-2-install.sh" >&2
     exit 1
   fi
 fi
@@ -56,13 +56,13 @@ install_helpers_from() {
 
 echo
 echo "############################################################"
-echo "# Step 2/2: install packages from local disk (USB offline) #"
+echo "# STEP 2 of 2: install packages from local disk (offline)  #"
 echo "############################################################"
 
 if ! local_mirror_ok; then
   echo "ERROR: local offline mirror missing or incomplete at $LOCAL_REPO_ROOT" >&2
-  echo "Run step 1 first (USB inserted):" >&2
-  echo "  sudo bash /mnt/rhel8offline/scripts/copy-offline-mirror-from-usb.sh" >&2
+  echo "Run STEP 1 of 2 first (USB inserted):" >&2
+  echo "  sudo bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh" >&2
   ls -la "$LOCAL_REPO_ROOT" 2>/dev/null || true
   exit 1
 fi
@@ -78,7 +78,7 @@ fi
 
 if ! grep -q "file://${LOCAL_REPO_ROOT}/BaseOS" "$REPO_FILE_LOCAL" 2>/dev/null; then
   echo "ERROR: $REPO_FILE_LOCAL does not point at local BaseOS" >&2
-  echo "Re-run copy-offline-mirror-from-usb.sh with USB inserted." >&2
+  echo "Re-run airgap-setup-1-copy-mirror.sh with USB inserted." >&2
   exit 1
 fi
 
@@ -136,7 +136,7 @@ mapfile -t FUSION_PKGS < <(pkg_file_to_array "$(find_pkg_list rpmfusion-extra.tx
 
 if [[ ${#REQ_PKGS[@]} -eq 0 && ${#REC_PKGS[@]} -eq 0 ]]; then
   echo "ERROR: no required.txt / recommended.txt found under $LOCAL_REPO_ROOT/packages (or airgap copies)." >&2
-  echo "Re-run copy-offline-mirror-from-usb.sh so packages/*.txt are on the local mirror." >&2
+  echo "Re-run airgap-setup-1-copy-mirror.sh so packages/*.txt are on the local mirror." >&2
   exit 1
 fi
 
@@ -197,7 +197,7 @@ elif [[ -x "$LOCAL_REPO_ROOT/scripts/configure-grub-timeout.sh" ]]; then
   bash "$LOCAL_REPO_ROOT/scripts/configure-grub-timeout.sh" "${GRUB_TIMEOUT:-5}" || true
 fi
 
-log "Install-from-local-mirror complete."
+log "STEP 2 of 2 (airgap-setup-2-install) complete."
 echo "  Local mirror:  $LOCAL_REPO_ROOT  ($(du -sh "$LOCAL_REPO_ROOT" | awk '{print $1}'))"
 echo "  dnf repos:     $REPO_FILE_LOCAL"
 echo "  Root guide:    /root/README.md"
