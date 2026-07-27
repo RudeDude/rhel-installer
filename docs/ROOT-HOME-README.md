@@ -13,11 +13,11 @@ Full copies of all air-gap documentation also live under:
 | `/root/README.md` | Kickstart / first helper install |
 | `/root/airgap-docs/` | After helpers install from media (full doc set) |
 | `/root/airgap-packages/` | Package list `.txt` files |
-| `/var/lib/offline-repos/docs/` | After first post-install mirror copy |
+| `/var/lib/offline-repos/docs/` | After STEP 1 (`airgap-setup-1-copy-mirror`) |
 | USB `docs/` and `OFFLINE-INSTALL.md` | Always on media |
 
 USB label: **`RHEL8OFFLINE`**  
-Local package mirror (after first post-install): **`/var/lib/offline-repos`**
+Local package mirror (after STEP 1): **`/var/lib/offline-repos`**
 
 ---
 
@@ -90,7 +90,7 @@ sudo dnf upgrade
 
 ### 5. GRUB menu waits forever (no auto timeout)
 
-Hardened / STIG images often set `GRUB_TIMEOUT=-1`. Fix (already applied by kickstart / post-install):
+Hardened / STIG images often set `GRUB_TIMEOUT=-1`. Fix (already applied by kickstart / airgap-setup-2):
 
 ```bash
 sudo configure-grub-timeout.sh        # default 5 seconds
@@ -106,7 +106,7 @@ python3.11 -m pip install --no-index \
   -r /var/lib/offline-repos/python-wheels/requirements.txt
 ```
 
-(Already done by post-install for packages in `python-wheels/requirements.txt`.)
+(Already done by airgap-setup-2-install for packages in `python-wheels/requirements.txt`.)
 
 ---
 
@@ -117,6 +117,7 @@ All under **`/usr/local/sbin/`** (on `PATH` for root). Also kept under
 
 | Command | Purpose |
 |---------|---------|
+| `airgap-common.sh` | Shared library sourced by target helpers (not run alone) |
 | `authorize-offline-usb.sh` | USBGuard off + authorize HID/storage |
 | `mount-offline-usb.sh` | `mount -L RHEL8OFFLINE` helper |
 | `enable-offline-repos.sh` | Point dnf at **local** mirror (or USB if no local yet) |
@@ -131,7 +132,7 @@ All under **`/usr/local/sbin/`** (on `PATH` for root). Also kept under
 
 ## Documentation index (everything shipped to the air-gap)
 
-| Doc | On media | On target after helpers / post-install |
+| Doc | On media | On target after helpers / airgap-setup |
 |-----|----------|----------------------------------------|
 | **This guide** (`ROOT-HOME-README.md`) | `docs/ROOT-HOME-README.md` | **`/root/README.md`** + `/root/airgap-docs/` |
 | Offline ops (detail) | `docs/OFFLINE-INSTALL.md`, partition root | `/root/airgap-docs/OFFLINE-INSTALL.md` |
@@ -179,7 +180,7 @@ then trust with fapolicyd — see **`STIG-THIRD-PARTY-TOOLS.md`**.
 
 ---
 
-## Layout after post-install
+## Layout after first-time airgap setup
 
 ```text
 /var/lib/offline-repos/

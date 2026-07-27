@@ -209,7 +209,7 @@ On the **build host**, with the `rhel8-reposync` container and trees under `out/
 CHECK_GUI_GROUP=1 ./scripts/01-fetch-offline-content.sh --only-check
 ```
 
-That points dnf at **only** `file:///repo/{BaseOS,AppStream,CodeReadyBuilder,EPEL}` (no CDN) and runs `dnf install --downloadonly` for the post-install package set. Exit 0 means the full dependency closure is available offline.
+That points dnf at **only** `file:///repo/{BaseOS,AppStream,CodeReadyBuilder,EPEL}` (no CDN) and runs `dnf install --downloadonly` for the airgap-setup-2 package set. Exit 0 means the full dependency closure is available offline.
 
 On an **installed air-gapped system** (USB mounted):
 

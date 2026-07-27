@@ -237,7 +237,7 @@ fi
 cat > /root/README-OFFLINE-REPOS.txt <<EOF
 Full guide: /root/README.md
 USB label: $REPO_LABEL
-Local mirror (after post-install): $LOCAL_DEFAULT
+Local mirror (after airgap-setup-1): $LOCAL_DEFAULT
 Helpers: authorize | mount | enable-offline-repos | offline-repo-status |
          airgap-setup-1-copy-mirror | airgap-setup-2-install | update-target
 Install mode: __KS_INSTALL_MODE__
@@ -251,7 +251,7 @@ Setup: airgap-setup-1-copy-mirror.sh → umount USB → airgap-setup-2-install.s
 EOF
 rm -f /etc/motd.d/99-offline-repos 2>/dev/null || true
 
-# Optional early package pass from USB if mounted (best-effort; full setup is two-step post-install)
+# Optional early package pass from USB if mounted (best-effort; full setup is two-step airgap-setup)
 if [ -d "$MNT/BaseOS" ] || [ -d "$MNT/AppStream" ]; then
   sed -i 's/^enabled=.*/enabled=1/' /etc/yum.repos.d/offline-usb.repo 2>/dev/null || true
   subscription-manager repos --disable='*' >/dev/null 2>&1 || true

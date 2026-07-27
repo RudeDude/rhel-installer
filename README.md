@@ -42,7 +42,7 @@ USB
     ├── python-wheels/          # pre-staged PyPI wheels (pipx + deps)
     ├── ks/ks.cfg
     ├── docs/                   # ROOT-HOME-README, OFFLINE-INSTALL, …
-    └── scripts/                # post-install, authorize, update, helpers
+    └── scripts/                # airgap-setup, authorize, update, helpers
 ```
 
 ### Media in this directory

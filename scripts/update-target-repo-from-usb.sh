@@ -2,10 +2,12 @@
 # On the *target* air-gapped system: refresh the local offline mirror from USB.
 # Lives on the USB at scripts/update-target-repo-from-usb.sh (also installable to /usr/local/sbin).
 #
+# Sub-steps (shared airgap-common.sh): authorize → mount → rsync → helpers → enable-repos
+#
 # Does NOT reinstall packages — only updates /var/lib/offline-repos (or LOCAL_REPO_ROOT)
 # and rewrites dnf file:// repo config.
 #
-#   sudo authorize-offline-usb.sh          # if keyboard/storage blocked
+#   sudo authorize-offline-usb.sh          # optional; this script also runs authorize
 #   sudo bash /mnt/rhel8offline/scripts/update-target-repo-from-usb.sh
 #
 # Env:
@@ -25,51 +27,25 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
-log() { echo "==> $*"; }
-
-# Directory this script was launched from (the USB's scripts/ when run from media),
-# so we can defer to co-located canonical helpers instead of reimplementing them.
-self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# USB authorize via canonical helper (installed, then co-located); minimal last resort
-if [[ -x /usr/local/sbin/authorize-offline-usb.sh ]]; then
-  /usr/local/sbin/authorize-offline-usb.sh || true
-elif [[ -f "$self_dir/authorize-offline-usb.sh" ]]; then
-  bash "$self_dir/authorize-offline-usb.sh" || true
+AIRGAP_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=airgap-common.sh
+if [[ -f "${AIRGAP_SELF_DIR}/airgap-common.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${AIRGAP_SELF_DIR}/airgap-common.sh"
+elif [[ -f /usr/local/share/airgap/scripts/airgap-common.sh ]]; then
+  # shellcheck disable=SC1091
+  source /usr/local/share/airgap/scripts/airgap-common.sh
 else
-  systemctl stop usbguard.service 2>/dev/null || true
-  systemctl disable usbguard.service 2>/dev/null || true
-  echo 1 > /sys/module/usbcore/parameters/authorized_default 2>/dev/null || true
-  for a in /sys/bus/usb/devices/*/authorized; do [[ -f "$a" ]] && echo 1 > "$a" 2>/dev/null || true; done
-  modprobe usbhid 2>/dev/null || true
-  modprobe usb_storage 2>/dev/null || true
-  modprobe uas 2>/dev/null || true
+  echo "ERROR: airgap-common.sh not found beside this script or under /usr/local/share/airgap/scripts/" >&2
+  exit 1
 fi
 
-mkdir -p "$USB_MNT"
-if ! findmnt "$USB_MNT" >/dev/null 2>&1; then
-  if [[ -x /usr/local/sbin/mount-offline-usb.sh ]]; then
-    /usr/local/sbin/mount-offline-usb.sh "$LABEL" "$USB_MNT" || true
-  elif [[ -f "$self_dir/mount-offline-usb.sh" ]]; then
-    bash "$self_dir/mount-offline-usb.sh" "$LABEL" "$USB_MNT" || true
-  fi
-fi
-if ! findmnt "$USB_MNT" >/dev/null 2>&1; then
-  dev="$(blkid -L "$LABEL" 2>/dev/null || true)"
-  if [[ -z "$dev" && -n "${USB_UUID:-}" ]]; then
-    dev="$(blkid -U "$USB_UUID" 2>/dev/null || true)"
-  fi
-  if [[ -z "$dev" ]]; then
-    echo "ERROR: LABEL=$LABEL not found (and mount-offline-usb failed)." >&2
-    echo "If only ~3G+~20M partitions: reimage on build host with 03-prepare-usb" >&2
-    echo "(04-update-usb never rewrites partitions)." >&2
-    lsblk -o NAME,SIZE,FSTYPE,LABEL,PARTLABEL,UUID,START; blkid || true
-    exit 1
-  fi
-  mount -o ro "$dev" "$USB_MNT"
-  log "Mounted $dev -> $USB_MNT"
-else
-  log "Using already-mounted $USB_MNT"
+export USB_MNT USB_REPO_LABEL="$LABEL" LOCAL_REPO_ROOT
+
+airgap_step_authorize
+
+if ! airgap_step_mount "$LABEL" "$USB_MNT"; then
+  exit 1
 fi
 
 if [[ ! -d "$USB_MNT/BaseOS" || ! -d "$USB_MNT/AppStream" ]]; then
@@ -82,35 +58,32 @@ if ! command -v rsync >/dev/null 2>&1; then
   exit 1
 fi
 
-log "Syncing USB offline mirror -> $LOCAL_REPO_ROOT"
+airgap_log "STEP copy: USB offline mirror → $LOCAL_REPO_ROOT"
 mkdir -p "$LOCAL_REPO_ROOT"
 rsync -aH --info=progress2 --delete \
   --exclude='lost+found' \
   "$USB_MNT"/ "$LOCAL_REPO_ROOT"/
 
-# Refresh ALL helpers + docs from local mirror (single installer — no partial cp list)
+airgap_log "STEP helpers: refresh from local mirror"
 if [[ -x "$LOCAL_REPO_ROOT/scripts/install-airgap-helpers.sh" ]]; then
   bash "$LOCAL_REPO_ROOT/scripts/install-airgap-helpers.sh" "$LOCAL_REPO_ROOT" || true
 elif [[ -x /usr/local/sbin/install-airgap-helpers.sh ]]; then
   /usr/local/sbin/install-airgap-helpers.sh "$LOCAL_REPO_ROOT" || true
 fi
 
-# Point dnf at local mirror via the canonical enable script (installed, then
-# co-located on the local mirror or USB). No inline repo-file reimplementation.
-export LOCAL_REPO_ROOT
-if [[ -x /usr/local/sbin/enable-offline-repos.sh ]]; then
-  /usr/local/sbin/enable-offline-repos.sh
-elif [[ -x "$LOCAL_REPO_ROOT/scripts/enable-offline-repos.sh" ]]; then
-  bash "$LOCAL_REPO_ROOT/scripts/enable-offline-repos.sh"
-elif [[ -x "$self_dir/enable-offline-repos.sh" ]]; then
-  bash "$self_dir/enable-offline-repos.sh"
-else
-  echo "WARN: enable-offline-repos.sh not found; leaving $REPO_FILE_LOCAL unchanged" >&2
+# Re-source common after helper refresh (updated library may be on disk)
+if [[ -f /usr/local/share/airgap/scripts/airgap-common.sh ]]; then
+  _AIRGAP_COMMON_LOADED=
+  # shellcheck disable=SC1091
+  source /usr/local/share/airgap/scripts/airgap-common.sh
 fi
 
-dnf clean all >/dev/null 2>&1 || true
+export LOCAL_REPO_ROOT
+if ! airgap_step_enable_repos; then
+  exit 1
+fi
 
-log "Local mirror updated."
+airgap_log "Local mirror updated."
 du -sh "$LOCAL_REPO_ROOT" "$LOCAL_REPO_ROOT"/* 2>/dev/null | head -20
 echo
 echo "dnf is pointed at file://${LOCAL_REPO_ROOT}/..."

@@ -39,6 +39,7 @@ if [[ -f "$SRC/scripts/target-scripts.list" ]]; then
 fi
 if [[ ${#HELPERS[@]} -eq 0 ]]; then
   HELPERS=(
+    airgap-common.sh
     authorize-offline-usb.sh
     mount-offline-usb.sh
     enable-offline-repos.sh
@@ -132,7 +133,7 @@ EOF
 rm -f /etc/motd.d/99-offline-repos 2>/dev/null || true
 
 echo "==> Helpers installed under $SBIN"
-ls -1 "$SBIN"/authorize* "$SBIN"/mount-offline* "$SBIN"/enable-offline* \
-  "$SBIN"/offline-repo* "$SBIN"/post-install* "$SBIN"/update-target* \
-  "$SBIN"/install-airgap* 2>/dev/null || true
+ls -1 "$SBIN"/airgap-common.sh "$SBIN"/authorize* "$SBIN"/mount-offline* \
+  "$SBIN"/enable-offline* "$SBIN"/offline-repo* "$SBIN"/airgap-setup* \
+  "$SBIN"/update-target* "$SBIN"/install-airgap* 2>/dev/null || true
 echo "==> Docs: /root/README.md  |  $ROOT_DOCS"

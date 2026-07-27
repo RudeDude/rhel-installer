@@ -268,10 +268,10 @@ refresh_operator_files() {
     mapfile -t _ts < <(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
       "$ROOT/scripts/target-scripts.list")
   else
-    _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
-         offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
-         airgap-setup-1-copy-mirror.sh airgap-setup-2-install.sh
-         update-target-repo-from-usb.sh)
+    _ts=(airgap-common.sh authorize-offline-usb.sh mount-offline-usb.sh
+         enable-offline-repos.sh offline-repo-status.sh configure-grub-timeout.sh
+         install-airgap-helpers.sh airgap-setup-1-copy-mirror.sh
+         airgap-setup-2-install.sh update-target-repo-from-usb.sh)
   fi
   for s in "${_ts[@]}"; do
     [[ -f "$ROOT/scripts/$s" ]] && cp -a "$ROOT/scripts/$s" "$MNT/scripts/" && chmod 755 "$MNT/scripts/$s"

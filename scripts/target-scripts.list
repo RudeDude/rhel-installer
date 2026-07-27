@@ -1,6 +1,8 @@
 # Target-facing scripts only (installed on the air-gapped system).
 # Build-host pipeline scripts 01-04 are NOT listed here.
 # Consumed by: 02-build-kickstart-iso, 03-prepare-usb, 04-update-usb, install-airgap-helpers.
+# airgap-common.sh is a sourced library (not run directly); must ship with the helpers.
+airgap-common.sh
 authorize-offline-usb.sh
 mount-offline-usb.sh
 enable-offline-repos.sh

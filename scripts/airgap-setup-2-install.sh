@@ -24,7 +24,23 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
-log() { echo "==> $*"; }
+AIRGAP_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=airgap-common.sh
+if [[ -f "${AIRGAP_SELF_DIR}/airgap-common.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${AIRGAP_SELF_DIR}/airgap-common.sh"
+elif [[ -f /usr/local/share/airgap/scripts/airgap-common.sh ]]; then
+  # shellcheck disable=SC1091
+  source /usr/local/share/airgap/scripts/airgap-common.sh
+elif [[ -f "${LOCAL_REPO_ROOT}/scripts/airgap-common.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${LOCAL_REPO_ROOT}/scripts/airgap-common.sh"
+else
+  echo "ERROR: airgap-common.sh not found (run STEP 1 so helpers are installed)" >&2
+  exit 1
+fi
+
+log() { airgap_log "$@"; }
 
 # Refuse if this script is still executing from a USB mount path (common mistake)
 script_src="${BASH_SOURCE[0]}"
@@ -40,11 +56,6 @@ if [[ -e "$script_src" ]]; then
   fi
 fi
 
-local_mirror_ok() {
-  [[ -d "$LOCAL_REPO_ROOT/BaseOS/repodata" || -d "$LOCAL_REPO_ROOT/BaseOS/Packages" ]] && \
-  [[ -d "$LOCAL_REPO_ROOT/AppStream/repodata" || -d "$LOCAL_REPO_ROOT/AppStream/Packages" ]]
-}
-
 install_helpers_from() {
   local src="$1"
   if [[ -x /usr/local/sbin/install-airgap-helpers.sh ]]; then
@@ -59,7 +70,7 @@ echo "############################################################"
 echo "# STEP 2 of 2: install packages from local disk (offline)  #"
 echo "############################################################"
 
-if ! local_mirror_ok; then
+if ! airgap_local_mirror_ok "$LOCAL_REPO_ROOT"; then
   echo "ERROR: local offline mirror missing or incomplete at $LOCAL_REPO_ROOT" >&2
   echo "Run STEP 1 of 2 first (USB inserted):" >&2
   echo "  sudo bash /mnt/rhel8offline/scripts/airgap-setup-1-copy-mirror.sh" >&2
@@ -68,12 +79,8 @@ if ! local_mirror_ok; then
 fi
 
 export LOCAL_REPO_ROOT
-if [[ -x /usr/local/sbin/enable-offline-repos.sh ]]; then
-  /usr/local/sbin/enable-offline-repos.sh
-elif [[ -x "$LOCAL_REPO_ROOT/scripts/enable-offline-repos.sh" ]]; then
-  bash "$LOCAL_REPO_ROOT/scripts/enable-offline-repos.sh"
-else
-  echo "WARN: enable-offline-repos.sh not found; assuming $REPO_FILE_LOCAL is correct" >&2
+if ! airgap_step_enable_repos; then
+  exit 1
 fi
 
 if ! grep -q "file://${LOCAL_REPO_ROOT}/BaseOS" "$REPO_FILE_LOCAL" 2>/dev/null; then

@@ -9,7 +9,7 @@ for use **without internet**.
 
 USB media label: **`RHEL8OFFLINE`** (unless you changed `USB_REPO_LABEL`).
 
-Permanent local mirror (after post-install): **`/var/lib/offline-repos`**
+Permanent local mirror (after STEP 1 / airgap-setup-1-copy-mirror): **`/var/lib/offline-repos`**
 
 ---
 
@@ -106,7 +106,7 @@ Repo file: `/etc/yum.repos.d/offline-local.repo`
 
 ## 3. Offline Python / pipx
 
-Wheels live on disk after post-install:
+Wheels live on disk after STEP 1 (mirror copy):
 
 ```bash
 python3.11 -m pip install --no-index \

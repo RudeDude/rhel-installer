@@ -50,7 +50,7 @@ Dense notes for a new agent. Prefer this + `README.md` + `docs/*` over chat hist
 | `dnf reposync --repoid` + `--disablerepo` incompatible | Don’t combine; use containerized reposync pattern in `01` |
 | `reposync -n` + `--download-metadata` | CDN repodata lists RPMs not on disk → offline dnf “incorrect checksum”. **Always rebuild repodata from on-disk RPMs** after sync (`01` now does; repair: `rebuild-offline-repodata.sh`) |
 | `pipx` / `ntpdate` missing as RPMs | Wheels + chrony |
-| Kickstart/helper drift | One list `target-scripts.list`; no duplicate enable-repos heredocs in post-install |
+| Kickstart/helper drift | One list `target-scripts.list`; shared `airgap-common.sh` for target helpers |
 
 ## Key paths
 

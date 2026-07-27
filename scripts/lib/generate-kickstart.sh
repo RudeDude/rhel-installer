@@ -180,6 +180,7 @@ if [[ -f "$ROOT/scripts/target-scripts.list" ]]; then
     "$ROOT/scripts/target-scripts.list")
 else
   TARGET_SCRIPTS=(
+    airgap-common.sh
     authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
     offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
     airgap-setup-1-copy-mirror.sh airgap-setup-2-install.sh

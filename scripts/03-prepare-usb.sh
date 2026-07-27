@@ -555,10 +555,10 @@ do_write() {
     mapfile -t _ts < <(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
       "$ROOT/scripts/target-scripts.list")
   else
-    _ts=(authorize-offline-usb.sh mount-offline-usb.sh enable-offline-repos.sh
-         offline-repo-status.sh configure-grub-timeout.sh install-airgap-helpers.sh
-         airgap-setup-1-copy-mirror.sh airgap-setup-2-install.sh
-         update-target-repo-from-usb.sh)
+    _ts=(airgap-common.sh authorize-offline-usb.sh mount-offline-usb.sh
+         enable-offline-repos.sh offline-repo-status.sh configure-grub-timeout.sh
+         install-airgap-helpers.sh airgap-setup-1-copy-mirror.sh
+         airgap-setup-2-install.sh update-target-repo-from-usb.sh)
   fi
   for s in "${_ts[@]}"; do
     if [[ -f "$ROOT/scripts/$s" ]]; then
@@ -572,7 +572,8 @@ do_write() {
   # Verify critical paths landed on the stick
   local missing=0
   for need in BaseOS AppStream EPEL python-wheels docs/OFFLINE-INSTALL.md \
-              docs/ROOT-HOME-README.md scripts/airgap-setup-1-copy-mirror.sh \
+              docs/ROOT-HOME-README.md scripts/airgap-common.sh \
+              scripts/airgap-setup-1-copy-mirror.sh \
               scripts/airgap-setup-2-install.sh \
               scripts/install-airgap-helpers.sh scripts/authorize-offline-usb.sh; do
     if [[ ! -e "$MNT/$need" ]]; then
@@ -604,7 +605,7 @@ Layout:
   python-wheels/        # pipx + deps (offline pip)
   packages/             # required.txt, epel-extra.txt, python-extra.txt, …
   docs/                 # ROOT-HOME-README, OFFLINE-INSTALL, ADDING-PACKAGES, …
-  scripts/              # all target helpers (post-install, authorize, update, …)
+  scripts/              # all target helpers (airgap-setup-*, authorize, update, …)
   ks/ks.cfg
 
 Quick start on installed system (two steps):
