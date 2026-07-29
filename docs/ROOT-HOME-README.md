@@ -136,7 +136,7 @@ All under **`/usr/local/sbin/`** (on `PATH` for root). Also kept under
 |-----|----------|----------------------------------------|
 | **This guide** (`ROOT-HOME-README.md`) | `docs/ROOT-HOME-README.md` | **`/root/README.md`** + `/root/airgap-docs/` |
 | Offline ops (detail) | `docs/OFFLINE-INSTALL.md`, partition root | `/root/airgap-docs/OFFLINE-INSTALL.md` |
-| **Default installed software** | `docs/INSTALLED-SOFTWARE-MANIFEST.md` | `/root/airgap-docs/` (RPMs + Python defaults only) |
+| **Default installed software** | `docs/INSTALLED-SOFTWARE-MANIFEST.md` | `/root/airgap-docs/` (flat RPM + Python lists) |
 | Adding packages | `docs/ADDING-PACKAGES.md` | `/root/airgap-docs/` |
 | Package name notes | `docs/PACKAGE-NOTES.md` | `/root/airgap-docs/` |
 | **STIG / fapolicyd third-party tools** | `docs/STIG-THIRD-PARTY-TOOLS.md` | `/root/airgap-docs/` |

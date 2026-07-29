@@ -152,7 +152,7 @@ See also `docs/USB-PREPARE-REVIEW.md`.
 7. **Target first setup (two scripts):** `airgap-setup-1-copy-mirror.sh` (USB→disk), then after unplug `airgap-setup-2-install.sh` (dnf/wheels/GUI from local mirror).
 
 Package name notes: `docs/PACKAGE-NOTES.md`.  
-Default installed set (RPMs + Python apps only): `docs/INSTALLED-SOFTWARE-MANIFEST.md`.
+Default installed names (flat RPM + Python lists): `docs/INSTALLED-SOFTWARE-MANIFEST.md`.
 
 Lists / config:
 
@@ -213,7 +213,7 @@ rhel-installer/
 ├── config.env.example          # copy to config.env (gitignored)
 ├── docs/
 │   ├── OFFLINE-INSTALL.md      # primary air-gap operator guide (copied to USB)
-│   ├── INSTALLED-SOFTWARE-MANIFEST.md  # default RPMs + Python (not full mirror)
+│   ├── INSTALLED-SOFTWARE-MANIFEST.md  # flat default RPM + Python names
 │   ├── ADDING-PACKAGES.md
 │   ├── PACKAGE-NOTES.md
 │   ├── STIG-THIRD-PARTY-TOOLS.md
