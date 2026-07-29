@@ -45,6 +45,9 @@
 
 **Staging vs install:** `01-fetch-offline-content.sh` mirrors BaseOS/AppStream/CRB, stages EPEL list, and stages RPM Fusion list into `out/offline-repo/RPMFusion/`. Target install reads lists via `airgap-setup-2-install.sh`.
 
+**Default software manifest** (what STEP 2 installs by name — not every RPM on media):  
+`docs/INSTALLED-SOFTWARE-MANIFEST.md` — regenerate with `./scripts/lib/generate-installed-manifest.sh`.
+
 See `docs/ADDING-PACKAGES.md` for how to add more packages and re-sync.
 
 ## Desktop group

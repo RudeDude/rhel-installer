@@ -151,7 +151,8 @@ See also `docs/USB-PREPARE-REVIEW.md`.
 6. **Offline Python wheels** are a **required** path for PyPI-only tools (**pipx** has no RHEL/EPEL 8 RPM). List them in `packages/python-extra.txt`, fetch with `./scripts/01-fetch-offline-content.sh`.
 7. **Target first setup (two scripts):** `airgap-setup-1-copy-mirror.sh` (USB→disk), then after unplug `airgap-setup-2-install.sh` (dnf/wheels/GUI from local mirror).
 
-Package name notes: `docs/PACKAGE-NOTES.md`.
+Package name notes: `docs/PACKAGE-NOTES.md`.  
+Default installed set (RPMs + Python apps only): `docs/INSTALLED-SOFTWARE-MANIFEST.md`.
 
 Lists / config:
 
@@ -212,6 +213,7 @@ rhel-installer/
 ├── config.env.example          # copy to config.env (gitignored)
 ├── docs/
 │   ├── OFFLINE-INSTALL.md      # primary air-gap operator guide (copied to USB)
+│   ├── INSTALLED-SOFTWARE-MANIFEST.md  # default RPMs + Python (not full mirror)
 │   ├── ADDING-PACKAGES.md
 │   ├── PACKAGE-NOTES.md
 │   ├── STIG-THIRD-PARTY-TOOLS.md

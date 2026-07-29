@@ -14,8 +14,17 @@ For packages only in **EPEL** or **RPM Fusion**, add them to the matching list f
 |------|-----------------------------------------------------|
 | `required.txt`, `recommended.txt` | Yes |
 | `epel-extra.txt`, `rpmfusion-extra.txt` | Yes |
+| `python-extra.txt` | Yes (via offline wheels + pip) |
 | `available-manual.txt` | **No** — document-only; operator runs `dnf install` when needed |
 | `rke2-extra.txt` | **No** — mirrored only; `sudo dnf install rke2-server` / `rke2-agent` when needed |
+
+**Single default-install manifest** (all auto RPMs + Python apps, not the full mirror):
+
+```bash
+./scripts/lib/generate-installed-manifest.sh   # writes docs/INSTALLED-SOFTWARE-MANIFEST.md
+```
+
+Also regenerated when you run `./scripts/02-build-kickstart-iso.sh` (via `generate-kickstart.sh`).
 
 Container stack examples in `available-manual.txt`: `podman-docker`, `podman`, `buildah`, `skopeo`, `containernetworking-plugins`, plus optional `runc` / `crun` / `slirp4netns` / `fuse-overlayfs`.
 

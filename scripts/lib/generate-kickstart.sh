@@ -196,6 +196,9 @@ for s in "${TARGET_SCRIPTS[@]}"; do
   fi
 done
 
+# Keep default-install manifest in sync with packages/*.txt
+bash "$ROOT/scripts/lib/generate-installed-manifest.sh" "$ROOT/docs/INSTALLED-SOFTWARE-MANIFEST.md" || true
+
 cp -a "$ROOT/docs"/*.md "$REPO_OUT/docs/" 2>/dev/null || true
 cp -a "$ROOT/docs/OFFLINE-INSTALL.md" "$REPO_OUT/OFFLINE-INSTALL.md" 2>/dev/null || true
 cp -a "$ROOT/packages"/*.txt "$REPO_OUT/packages/" 2>/dev/null || true
